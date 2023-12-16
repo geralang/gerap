@@ -1,0 +1,271 @@
+
+mod gerap::build
+
+use gerap::(config, parser)
+use std::*
+
+pub proc build_project(root_project) {
+    var root_name = root_project.name |> opt::unwrap_or_else(|| {
+            io::println("The package does not define a name!")
+            prc::exit(1)
+            return panic("")
+        })
+    io::create_dir(".gerap")
+    var root_target = root_project.target |> opt::unwrap_or_else(|| {
+            "Package '_' does not define a target type!"
+                |> str::fmt([root_name])
+                |> io::println()
+            prc::exit(1)
+            return panic("")
+        })
+    case root_target == "any" -> {
+        "Package '_' is of type 'any', but is not a dependency!"
+            |> str::fmt([root_name])
+            |> io::println()
+        prc::exit(1)
+    }
+    var source_files = vec::new()
+    var linked_files = vec::new()
+    collect_source_files(
+        "src", #none unit, static [".gera", ".gem"], source_files
+    )
+    resolve_dependencies(
+        root_project, root_target, ".", source_files, linked_files
+    )
+    root_project.link |> opt::map(|l| {
+            case root_target != "c" -> {
+                "Package '_' has target type '_', but defines files to link!"
+                    |> str::fmt([root_name, root_target])
+                    |> io::println()
+                prc::exit(1)
+            }
+            l |> arr::iter() |> iter::for_each(|f| {
+                case linked_files |> vec::iter()
+                    |> iter::find(|c| c == f)
+                    |> opt::is_none()
+                    -> linked_files |> vec::push(f)
+            })
+            return unit
+        })
+    root_project.build |> opt::map(|command| {
+            case env::run(command) != 0 -> {
+                "Build command failed!"
+                    |> io::println()
+                prc::exit(1)
+            }
+        })
+    var gera_files_str = source_files |> vec::iter()
+        |> iter::map(|f| "\"_\"" |> str::fmt([f]))
+        |> str::join(" ")
+    var main_path = root_project.main |> opt::unwrap_or_else(|| {
+            io::println("Package does not have a defined main procedure!")
+            prc::exit(1)
+            return panic("")
+        })
+    var output_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
+        |> concat(".") |> concat(root_target)
+    case env::run(
+        "_ _ -m _ -t c -o _"
+            |> str::fmt([
+                config::get_gerac_path(),
+                gera_files_str,
+                main_path,
+                output_file
+            ])
+    ) != 0 -> {
+        "Unable to compile package '_'!"
+            |> str::fmt([root_name])
+            |> io::println()
+        prc::exit(1)
+    }
+    case root_target == "c" -> {
+        var linked_files_str = linked_files |> vec::iter()
+            |> iter::map(|f| "\"_\"" |> str::fmt([f]))
+            |> str::join(" ")
+        var exec_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
+        case env::run(
+            "_ _ _ -lm -o _"
+                |> str::fmt([
+                    config::get_cc_path(),
+                    linked_files_str,
+                    output_file,
+                    exec_file
+                ])
+        ) != 0 -> {
+            "Unable to compile package '_'!"
+                |> str::fmt([root_name])
+                |> io::println()
+            prc::exit(1)
+        }
+    }
+}
+
+proc resolve_dependencies(
+    project, project_target, project_path, gera_files, linked_files
+) {
+    project.dependencies
+        |> opt::map(|deps| deps |> arr::iter() |> iter::for_each(|d| {
+            var dep_dir
+            var dep_name
+            case d {
+                #url u -> {
+                    dep_dir = clone_dependency(u)
+                    dep_name = u
+                }
+                #file f -> {
+                    var og_cwd = io::get_cwd()
+                    io::set_cwd(project_path)
+                    dep_dir = io::canonicalize(f)
+                        |> res::unwrap_or_else(|e| {
+"Unable to find local dependency '_'!"
+                            |> str::fmt([f])
+                            |> io::println()
+                        prc::exit(1)
+                        return panic("")
+                    })
+                    io::set_cwd(og_cwd)
+                    dep_name = f
+                }
+            }
+            var dep_p_file = dep_dir |> concat(io::file_sep()) 
+                |> concat("config.gpc")
+            var dep = io::read_file(dep_p_file)
+                |> res::unwrap_or_else(|e| {
+                    "(In dependency '_')
+Unable to find package file ('config.gpc')"
+                        |> str::fmt([dep_name])
+                        |> io::println()
+                    prc::exit(1)
+                    return panic("")
+                })
+                |> parser::parse_file()
+                |> res::unwrap_or_else(|e| {
+                    "(In dependency '_')
+Unable to read package file: _"
+                        |> str::fmt([dep_name, e])
+                        |> io::println()
+                    prc::exit(1)
+                    return panic("")
+                })
+            var dep_target = dep.target |> opt::unwrap_or_else(|| {
+                "The dependency '_' does not define a target type!"
+                    |> str::fmt([dep_name])
+                    |> io::println()
+                prc::exit(1)
+                return panic("")
+            })
+            case project_target != dep_target && dep_target != "any" -> {
+                "The dependency '_' has the target type '_', \
+but its dependant has the target type '_'!"
+                    |> str::fmt([
+                        dep_name,
+                        dep_target,
+                        project_target
+                    ])
+                    |> io::println()
+                prc::exit(1)
+            }
+            var dep_src_dir = dep_dir |> concat(io::file_sep()) |> concat("src")
+            collect_source_files(
+                dep_src_dir, #some dep_name, static [".gera", ".gem"],
+                gera_files 
+            )
+            dep.build |> opt::map(|command| {
+                var og_cwd = io::get_cwd()
+                io::set_cwd(dep_dir)
+                case env::run(command) != 0 -> {
+                    "(In dependency '_')
+Build command failed!"
+                        |> str::fmt([dep_name])
+                        |> io::println()
+                    prc::exit(1)
+                }
+                io::set_cwd(og_cwd)
+            })
+            dep.link |> opt::map(|l| {
+                    case dep_target != "c" -> {
+                        "The dependency '_' has target type '_', \
+but defines files to link!"
+                            |> str::fmt([dep_name, dep_target])
+                            |> io::println()
+                        prc::exit(1)
+                    }
+                    var og_cwd = io::get_cwd()
+                    io::set_cwd(dep_dir)
+                    l |> arr::iter()
+                        |> iter::map(|f| io::canonicalize(f)
+                            |> res::unwrap_or_else(|e| {
+                                "(In dependency '_')
+    Unable to find linked file '_'!"
+                                    |> str::fmt([dep_name, f])
+                                    |> io::println()
+                                prc::exit(1)
+                                return panic("")
+                            })
+                        )
+                        |> iter::for_each(|f| {
+                            case linked_files |> vec::iter()
+                                |> iter::find(|c| c == f)
+                                |> opt::is_none()
+                                -> linked_files |> vec::push(f)
+                        })
+                    io::set_cwd(og_cwd)
+                    return unit
+                })
+            resolve_dependencies(
+                dep, dep_target, dep_dir, gera_files, linked_files
+            )
+        }))
+}
+
+proc clone_dependency(url) {
+    var h = url |> hash()
+    var dest_dir = ".gerap" |> concat(io::file_sep()) |> concat(h |> as_str())
+    case io::is_dir(dest_dir) |> res::unwrap_or(false) -> return dest_dir
+    case env::run(
+        "_ clone _ _"
+            |> str::fmt([
+                config::get_git_path(),
+                url,
+                dest_dir
+            ])
+    ) != 0 -> {
+        io::println("Unable to clone package repository!")
+        prc::exit(1)
+    }
+    return dest_dir
+}
+
+proc collect_source_files(path, dep_name, extensions, dest) {
+    path |> io::read_dir()
+        |> res::unwrap_or_else(|e| {
+            dep_name |> opt::map(|d| "(In dependency '_')\n" |> str::fmt([d])) 
+                |> opt::unwrap_or("")
+                |> concat("Unable to find source directory ('src')!")
+                |> io::println()
+            prc::exit(1)
+            return panic("")
+        })
+        |> arr::iter()
+        |> iter::filter(|name| 
+            opt::is_some(extensions 
+                |> arr::iter() 
+                |> iter::find(|e| name |> str::ends_with(e))
+            ) || res::unwrap_or(
+                path |> concat(io::file_sep()) |> concat(name) |> io::is_dir(),
+                false
+            )
+        )
+        |> iter::for_each(|name| {
+            var item_path = path |> concat(io::file_sep()) |> concat(name)
+            case item_path |> io::is_file()
+                    |> res::expect("Unable to find file!") -> {
+                case dest |> vec::iter()
+                    |> iter::find(|c| c == item_path)
+                    |> opt::is_none()
+                    -> dest |> vec::push(item_path)
+            } else {
+                item_path |> collect_source_files(dep_name, extensions, dest)
+            }
+        })
+}
