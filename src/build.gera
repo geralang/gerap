@@ -4,6 +4,18 @@ mod gerap::build
 use gerap::(config, parser)
 use std::*
 
+proc process_build_command(cmd) {
+    return cmd
+        |> str::split("@GERAP_GERAC_PATH")
+        |> str::join(config::get_gerac_path())
+        |> str::split("@GERAP_GIT_PATH")
+        |> str::join(config::get_git_path())
+        |> str::split("@GERAP_CC_PATH")
+        |> str::join(config::get_cc_path())
+        |> str::split("@GERAP_CC_ARGS")
+        |> str::join(config::get_cc_args())
+}
+
 pub proc build_project(root_project) {
     var root_name = root_project.name |> opt::unwrap_or_else(|| {
             io::println("The package does not define a name!")
@@ -48,7 +60,8 @@ pub proc build_project(root_project) {
             return unit
         })
     root_project.build |> opt::map(|command| {
-            case env::run(command) != 0 -> {
+            var build_cmd = process_build_command(command)
+            case env::run(build_cmd) != 0 -> {
                 "Build command failed!"
                     |> io::println()
                 prc::exit(1)
@@ -64,15 +77,14 @@ pub proc build_project(root_project) {
         })
     var output_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
         |> concat(".") |> concat(root_target)
-    case env::run(
-        "_ _ -m _ -t c -o _"
-            |> str::fmt([
-                config::get_gerac_path(),
-                gera_files_str,
-                main_path,
-                output_file
-            ])
-    ) != 0 -> {
+    var gerac_cmd = "_ _ -m _ -t c -o _"
+        |> str::fmt([
+            config::get_gerac_path(),
+            gera_files_str,
+            main_path,
+            output_file
+        ])
+    case env::run(gerac_cmd) != 0 -> {
         "Unable to compile package '_'!"
             |> str::fmt([root_name])
             |> io::println()
@@ -83,15 +95,15 @@ pub proc build_project(root_project) {
             |> iter::map(|f| "\"_\"" |> str::fmt([f]))
             |> str::join(" ")
         var exec_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
-        case env::run(
-            "_ _ _ -lm -o _"
-                |> str::fmt([
-                    config::get_cc_path(),
-                    linked_files_str,
-                    output_file,
-                    exec_file
-                ])
-        ) != 0 -> {
+        var cc_cmd = "_ _ _ -lm _-o _"
+            |> str::fmt([
+                config::get_cc_path(),
+                linked_files_str,
+                output_file,
+                config::get_cc_args(), // adds space at the end
+                exec_file
+            ])
+        case env::run(cc_cmd) != 0 -> {
             "Unable to compile package '_'!"
                 |> str::fmt([root_name])
                 |> io::println()
@@ -173,7 +185,8 @@ but its dependant has the target type '_'!"
             dep.build |> opt::map(|command| {
                 var og_cwd = io::get_cwd()
                 io::set_cwd(dep_dir)
-                case env::run(command) != 0 -> {
+                var build_cmd = process_build_command(command)
+                case env::run(build_cmd) != 0 -> {
                     "(In dependency '_')
 Build command failed!"
                         |> str::fmt([dep_name])

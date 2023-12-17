@@ -17,3 +17,9 @@ pub proc get_cc_path() {
     return env::get_var("GERAP_CC_PATH")
         |> opt::unwrap_or("cc")
 }
+
+pub proc get_cc_args() {
+    return env::get_var("GERAP_CC_ARGS")
+        |> opt::map(|args| args |> concat(" "))
+        |> opt::unwrap_or("")
+}
