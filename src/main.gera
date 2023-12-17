@@ -108,7 +108,7 @@ proc main() {
                 io::println(USAGE)
                 prc::exit(1)
             }
-            panic("Not yet implemented!")
+            files::nuke_dir(".gerap")
         }
     } else {
         io::println(USAGE)
