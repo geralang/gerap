@@ -205,7 +205,8 @@ pub proc parse_file(file) {
         dependencies = #none unit,
         main = #none unit,
         build = #none unit,
-        link = #none unit
+        link = #none unit,
+        include = #none unit
     }
     var tokens = file |> as_tokens()
     var encountered = { error = #none unit }
@@ -327,6 +328,13 @@ Package names may only consist of letters, digits and underscores!"
             }
             "link" -> case tokens |> parse_string_list() {
                 #ok l -> project.link = #some l
+                #err e -> {
+                    encountered.error = #some e
+                    return #end unit
+                }
+            }
+            "include" -> case tokens |> parse_string_list() {
+                #ok l -> project.include = #some l
                 #err e -> {
                     encountered.error = #some e
                     return #end unit

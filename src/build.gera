@@ -38,12 +38,22 @@ pub proc build_project(root_project) {
     }
     var source_files = vec::new()
     var linked_files = vec::new()
+    var included_files = vec::new()
     collect_source_files(
         "src", #none unit, static [".gera", ".gem"], source_files
     )
     resolve_dependencies(
-        root_project, root_target, ".", source_files, linked_files
+        root_project, root_target, ".", source_files, linked_files,
+        included_files
     )
+    root_project.build |> opt::map(|command| {
+            var build_cmd = process_build_command(command)
+            case env::run(build_cmd) != 0 -> {
+                "Build command failed!"
+                    |> io::println()
+                prc::exit(1)
+            }
+        })
     root_project.link |> opt::map(|l| {
             case root_target != "c" -> {
                 "Package '_' has target type '_', but defines files to link!"
@@ -59,14 +69,12 @@ pub proc build_project(root_project) {
             })
             return unit
         })
-    root_project.build |> opt::map(|command| {
-            var build_cmd = process_build_command(command)
-            case env::run(build_cmd) != 0 -> {
-                "Build command failed!"
-                    |> io::println()
-                prc::exit(1)
-            }
-        })
+    root_project.include |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
+            case included_files |> vec::iter()
+                |> iter::find(|c| c == f)
+                |> opt::is_none()
+                -> included_files |> vec::push(f)
+        }))
     var gera_files_str = source_files |> vec::iter()
         |> iter::map(|f| "\"_\"" |> str::fmt([f]))
         |> str::join(" ")
@@ -77,11 +85,12 @@ pub proc build_project(root_project) {
         })
     var output_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
         |> concat(".") |> concat(root_target)
-    var gerac_cmd = "_ _ -m _ -t c -o _"
+    var gerac_cmd = "_ _ -m _ -t _ -o _"
         |> str::fmt([
             config::get_gerac_path(),
             gera_files_str,
             main_path,
+            root_target,
             output_file
         ])
     case env::run(gerac_cmd) != 0 -> {
@@ -110,10 +119,24 @@ pub proc build_project(root_project) {
             prc::exit(1)
         }
     }
+    included_files |> vec::iter() |> iter::for_each(|f| {
+        var content = f |> io::read_file() |> res::unwrap_or_else(|e| {
+            "Unable to copy included file '_': _!"
+                |> str::fmt([f, e])
+                |> io::println()
+            prc::exit(1)
+            return panic("")
+        })
+        var fname = f |> str::split(io::file_sep()) |> iter::last()
+            |> opt::expect("'split' returns >1 elements")
+        var fdest = ".gerap" |> concat(io::file_sep()) |> concat(fname)
+        content |> io::write_file(fdest)
+    })
 }
 
 proc resolve_dependencies(
-    project, project_target, project_path, gera_files, linked_files
+    project, project_target, project_path, gera_files, linked_files,
+    included_files
 ) {
     project.dependencies
         |> opt::map(|deps| deps |> arr::iter() |> iter::for_each(|d| {
@@ -225,8 +248,30 @@ but defines files to link!"
                     io::set_cwd(og_cwd)
                     return unit
                 })
+            dep.include |> opt::map(|l| {
+                var og_cwd = io::get_cwd()
+                io::set_cwd(dep_dir)
+                l |> arr::iter() |> iter::for_each(|f| {
+                    var fp = io::canonicalize(f)
+                        |> res::unwrap_or_else(|e| {
+                            "(In dependency '_')
+Unable to find included file '_'!"
+                                |> str::fmt([dep_name, f])
+                                |> io::println()
+                            prc::exit(1)
+                            return panic("")
+                        })
+                    case included_files |> vec::iter()
+                        |> iter::find(|c| c == fp)
+                        |> opt::is_none()
+                        -> included_files |> vec::push(fp)
+                })
+                io::set_cwd(og_cwd)
+                return unit
+            })
             resolve_dependencies(
-                dep, dep_target, dep_dir, gera_files, linked_files
+                dep, dep_target, dep_dir, gera_files, linked_files,
+                included_files
             )
         }))
 }
