@@ -14,6 +14,8 @@ proc process_build_command(cmd) {
         |> str::join(config::get_cc_path())
         |> str::split("@GERAP_CC_ARGS")
         |> str::join(config::get_cc_args())
+        |> str::split("@GERAP_NODE_PATH")
+        |> str::join(config::get_node_path())
 }
 
 pub proc build_project(root_project) {

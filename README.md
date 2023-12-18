@@ -4,9 +4,19 @@ The package manager for [the Gera programming language](https://github.com/types
 
 ## Dependencies
 
-`gerap` requires `git`, `gerac` and a C compiler to function. By default, `gerap` will expect these to be in the PATH (as `git`, `gerac` and `cc` respectively). To overwrite this, alternative paths for each may be specified using the `GERAP_GIT_PATH`, `GERAP_GERAC_PATH` and `GERAP_CC_PATH` environment variables.
-
-Additional arguments for the C compiler may be specified by the `GERAP_CC_ARGS` environment variable.
+`gerap` has the following dependencies (some of which might not be needed depending on your use case), which shall be in the PATH or overwritten with their respective environment variables if needed:
+- `git`
+  - default is `git`, overwrite with `GERAP_GIT_PATH`
+  - required when a git repository containing a package is used as a dependency
+- `gerac`
+  - default is `gerac`, overwrite with `GERAP_GERAC_PATH`
+  - required when Gera source code is compiled
+- A C compiler
+  - default is `cc`, overwrite with `GERAP_CC_PATH`, specify arguments with `GERAP_CC_ARGS`
+  - required when a package with `target = "c"` is built or ran
+- `node`
+  - default is `node`, overwrite with `GERAP_NODE_PATH`)
+  - required when a package with `target = "js"` is ran
 
 ## CLI Usage
 
@@ -28,7 +38,11 @@ Builds the package in the current directory, putting the output into `./.gerap` 
 ```
 gerap run
 ```
-Builds the package in the current directory and runs the resulting binary. Requires that this package defines a main procedure in its configuration file, that `target = "c"` and that the C compiler used generates an executable that can be run on the current platform.
+Builds the package in the current directory and runs the resulting binary. Requires that:
+- This package defines a main procedure in its configuration file
+- `target = "c"` or `target = "js"`
+- *(when `target = "c"`)* the C compiler used generates an executable that can be run on the current platform
+- *(when `target = "js"`)* the resulting file can be interpreted by a Javascript engine (e.g. Node.js)
 
 ```
 gerap clean
@@ -59,25 +73,36 @@ The file consists of a list of properties, each of which either being:
 ### List of Properties
 
 - `name`
-  The name of the package. Must be a string that only contains `a-z`, `A-Z`, `0-9` or `_`.
+    - The name of the package.
+    - Must be a string that only contains `a-z`, `A-Z`, `0-9` or `_`.
 - `target`
-  The target format of the package. Must be a string that's either `c`, `js` or `any`.
-  *Packages may only depend on other packages with the same target format or target format `any`.*
+    - The target format of the package.
+    - Must be a string that's either `c`, `js` or `any`.
+    - *Packages may only depend on other packages with the same target format or target format `any`.*
 - `dependencies`
-  A list of dependencies of the package. Must be a list of strings or git repositories, each either being a Git-repository or a local directory with a `config.gpc`-file at its root.
+    - A list of dependencies of the package.
+    - Must be a list of strings or git repositories, each either being a Git-repository or a local directory with a `config.gpc`-file at its root.
 - `main` *(optional)*
-  The full path of the main procedure. Must be a string.
-  *Note that not specifying a main procedure does not allow you to build or run this package, only to use it as a dependency.*
+    - The full path of the main procedure.
+    - Must be a string.
+    - *Note that not specifying a main procedure does not allow you to build or run this package, only to use it as a dependency.*
 - `description` *(optional)*
-  A description of the package. Must be a string.
+    - A description of the package.
+    - Must be a string.
 - `authors` *(optional)*
-  The authors of the package. Must be a list of strings.
+    - The authors of the package.
+    - Must be a list of strings.
 - `version` *(optional)*
-  The version of the package. Must be a string.
+    - The version of the package.
+    - Must be a string.
 - `build` *(optional)*
-  A command to run when processing the package. Must be a string.
-  Note that `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH` and `@GERAP_CC_ARGS` will be replaced with the respective values `gerap` is using internally before the command is executed.
+    - A command to run when processing the package.
+    - Must be a string.
+    - Note that `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
 - `link` *(optional)*
-  A list of files to pass to the C compiler when a binary is made. Must be a list of strings. Requires that `target = "c"`.
+  - *(when `target = "c"`)* A list of files to pass to the C compiler when a binary is made.
+  - *(when `target = "js"`)* A list of files whose contents shall be inserted at the top of the output file.
+  - Must be a list of strings.
 - `include` *(optional)*
-  A list of files to copy into the output directory (`.gerap`). Must be a list of strings.
+  - A list of files to copy into the output directory (`.gerap`).
+  - Must be a list of strings.
