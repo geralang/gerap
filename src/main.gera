@@ -1,7 +1,7 @@
 
 mod gerap
 
-use gerap::(files, build, parser)
+use gerap::(files, build, parser, config)
 use std::*
 
 var USAGE = "Usage:
@@ -87,21 +87,32 @@ proc main() {
                     return panic("")
                 })
             root_project |> build::build_project()
-            case opt::expect(root_project.target, "enforced by 'build_project'")
-                != "c" -> {
-                "Package must have target type 'c' to run it!"
+            var root_target = root_project.target
+                |> opt::expect("enforced by 'build_project'")
+            var project_name = root_project.name
+                |> opt::expect("enforced by 'build_project'")
+            var args_str = args |> arr::iter() |> iter::skip(2)
+                |> str::join(" ")
+            case root_target {
+                "c" -> {
+                    ".gerap" |> concat(io::file_sep())
+                        |> concat(project_name)
+                        |> concat(" ") |> concat(args_str)
+                        |> env::run()
+                }
+                "js" -> {
+                    config::get_node_path()
+                        |> concat(" .gerap") |> concat(io::file_sep())
+                        |> concat(project_name) |> concat(".js")
+                        |> concat(" ") |> concat(args_str)
+                        |> env::run()
+                }
+            } else {
+                "A package of type '_' cannot be directly executed!"
+                    |> str::fmt([root_target])
                     |> io::println()
                 prc::exit(1)
             }
-            ".gerap" |> concat(io::file_sep())
-                |> concat(
-                    root_project.name |> opt::expect("enforced by 'build_project'")
-                )
-                |> concat(" ")
-                |> concat(
-                    args |> arr::iter() |> iter::skip(2) |> str::join(" ")
-                )
-                |> env::run()
         }
         "clean" -> {
             case length(args) != 2 -> {

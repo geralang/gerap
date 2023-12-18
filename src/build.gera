@@ -55,7 +55,7 @@ pub proc build_project(root_project) {
             }
         })
     root_project.link |> opt::map(|l| {
-            case root_target != "c" -> {
+            case root_target != "c" && root_target != "js" -> {
                 "Package '_' has target type '_', but defines files to link!"
                     |> str::fmt([root_name, root_target])
                     |> io::println()
@@ -99,24 +99,44 @@ pub proc build_project(root_project) {
             |> io::println()
         prc::exit(1)
     }
-    case root_target == "c" -> {
-        var linked_files_str = linked_files |> vec::iter()
-            |> iter::map(|f| "\"_\"" |> str::fmt([f]))
-            |> str::join(" ")
-        var exec_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
-        var cc_cmd = "_ _ _ -lm _-o _"
-            |> str::fmt([
-                config::get_cc_path(),
-                linked_files_str,
-                output_file,
-                config::get_cc_args(), // adds space at the end
-                exec_file
-            ])
-        case env::run(cc_cmd) != 0 -> {
-            "Unable to compile package '_'!"
-                |> str::fmt([root_name])
-                |> io::println()
-            prc::exit(1)
+    case root_target {
+        "c" -> {
+            var linked_files_str = linked_files |> vec::iter()
+                |> iter::map(|f| "\"_\"" |> str::fmt([f]))
+                |> str::join(" ")
+            var exec_file = ".gerap" |> concat(io::file_sep())
+                |> concat(root_name)
+            var cc_cmd = "_ _ _ -lm _-o _"
+                |> str::fmt([
+                    config::get_cc_path(),
+                    linked_files_str,
+                    output_file,
+                    config::get_cc_args(), // adds space at the end
+                    exec_file
+                ])
+            case env::run(cc_cmd) != 0 -> {
+                "Unable to compile package '_'!"
+                    |> str::fmt([root_name])
+                    |> io::println()
+                prc::exit(1)
+            }
+        }
+        "js" -> {
+            var linked = { output = "" }
+            linked_files |> vec::iter() |> iter::for_each(|f| {
+                linked.output = linked.output
+                    |> concat(f |> io::read_file() |> res::unwrap_or_else(|e| {
+                        "Unable to find linked file '_': _"
+                            |> str::fmt([f, e])
+                            |> io::println()
+                        prc::exit(1)
+                        return panic("")
+                    }))
+                    |> concat("\n")
+            })
+            var output = output_file |> io::read_file()
+                |> res::expect("should still be there!")
+            linked.output |> concat(output) |> io::write_file(output_file)
         }
     }
     included_files |> vec::iter() |> iter::for_each(|f| {
@@ -219,7 +239,7 @@ Build command failed!"
                 io::set_cwd(og_cwd)
             })
             dep.link |> opt::map(|l| {
-                    case dep_target != "c" -> {
+                    case dep_target != "c" && dep_target != "js" -> {
                         "The dependency '_' has target type '_', \
 but defines files to link!"
                             |> str::fmt([dep_name, dep_target])

@@ -23,3 +23,8 @@ pub proc get_cc_args() {
         |> opt::map(|args| args |> concat(" "))
         |> opt::unwrap_or("")
 }
+
+pub proc get_node_path() {
+    return env::get_var("GERAP_NODE_PATH")
+        |> opt::unwrap_or("node")
+}
