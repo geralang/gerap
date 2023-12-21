@@ -25,14 +25,14 @@ pub proc build_project(root_project) {
             return panic("")
         })
     io::create_dir(".gerap")
-    var root_target = root_project.target |> opt::unwrap_or_else(|| {
-            "Package '_' does not define a target type!"
+    var root_ctarget = root_project.ctarget |> opt::unwrap_or_else(|| {
+            "Package '_' does not define a ctarget type!"
                 |> str::fmt([root_name])
                 |> io::println()
             prc::exit(1)
             return panic("")
         })
-    case root_target == "any" -> {
+    case root_ctarget == "any" -> {
         "Package '_' is of type 'any', but is not a dependency!"
             |> str::fmt([root_name])
             |> io::println()
@@ -45,7 +45,7 @@ pub proc build_project(root_project) {
         "src", #none unit, static [".gera", ".gem"], source_files
     )
     resolve_dependencies(
-        root_project, root_target, ".", source_files, linked_files,
+        root_project, root_ctarget, ".", source_files, linked_files,
         included_files
     )
     root_project.build |> opt::map(|command| {
@@ -57,9 +57,9 @@ pub proc build_project(root_project) {
             }
         })
     root_project.link |> opt::map(|l| {
-            case root_target != "c" && root_target != "js" -> {
-                "Package '_' has target type '_', but defines files to link!"
-                    |> str::fmt([root_name, root_target])
+            case root_ctarget != "c" && root_ctarget != "js" -> {
+                "Package '_' has ctarget type '_', but defines files to link!"
+                    |> str::fmt([root_name, root_ctarget])
                     |> io::println()
                 prc::exit(1)
             }
@@ -86,13 +86,13 @@ pub proc build_project(root_project) {
             return panic("")
         })
     var output_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
-        |> concat(".") |> concat(root_target)
+        |> concat(".") |> concat(root_ctarget)
     var gerac_cmd = "_ _ -m _ -t _ -o _"
         |> str::fmt([
             config::get_gerac_path(),
             gera_files_str,
             main_path,
-            root_target,
+            root_ctarget,
             output_file
         ])
     case env::run(gerac_cmd) != 0 -> {
@@ -101,7 +101,7 @@ pub proc build_project(root_project) {
             |> io::println()
         prc::exit(1)
     }
-    case root_target {
+    case root_ctarget {
         "c" -> {
             var linked_files_str = linked_files |> vec::iter()
                 |> iter::map(|f| "\"_\"" |> str::fmt([f]))
@@ -157,7 +157,7 @@ pub proc build_project(root_project) {
 }
 
 proc resolve_dependencies(
-    project, project_target, project_path, gera_files, linked_files,
+    project, project_ctarget, project_path, gera_files, linked_files,
     included_files
 ) {
     project.dependencies
@@ -204,20 +204,20 @@ Unable to read package file: _"
                     prc::exit(1)
                     return panic("")
                 })
-            var dep_target = dep.target |> opt::unwrap_or_else(|| {
-                "The dependency '_' does not define a target type!"
+            var dep_ctarget = dep.ctarget |> opt::unwrap_or_else(|| {
+                "The dependency '_' does not define a ctarget type!"
                     |> str::fmt([dep_name])
                     |> io::println()
                 prc::exit(1)
                 return panic("")
             })
-            case project_target != dep_target && dep_target != "any" -> {
-                "The dependency '_' has the target type '_', \
-but its dependant has the target type '_'!"
+            case project_ctarget != dep_ctarget && dep_ctarget != "any" -> {
+                "The dependency '_' has the ctarget type '_', \
+but its dependant has the ctarget type '_'!"
                     |> str::fmt([
                         dep_name,
-                        dep_target,
-                        project_target
+                        dep_ctarget,
+                        project_ctarget
                     ])
                     |> io::println()
                 prc::exit(1)
@@ -241,10 +241,10 @@ Build command failed!"
                 io::set_cwd(og_cwd)
             })
             dep.link |> opt::map(|l| {
-                    case dep_target != "c" && dep_target != "js" -> {
-                        "The dependency '_' has target type '_', \
+                    case dep_ctarget != "c" && dep_ctarget != "js" -> {
+                        "The dependency '_' has ctarget type '_', \
 but defines files to link!"
-                            |> str::fmt([dep_name, dep_target])
+                            |> str::fmt([dep_name, dep_ctarget])
                             |> io::println()
                         prc::exit(1)
                     }
@@ -292,7 +292,7 @@ Unable to find included file '_'!"
                 return unit
             })
             resolve_dependencies(
-                dep, dep_target, dep_dir, gera_files, linked_files,
+                dep, dep_ctarget, dep_dir, gera_files, linked_files,
                 included_files
             )
         }))

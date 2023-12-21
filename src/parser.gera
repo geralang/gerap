@@ -201,7 +201,7 @@ pub proc parse_file(file) {
         description = #none unit,
         authors = #none unit,
         version = #none unit,
-        target = #none unit,
+        ctarget = #none unit,
         dependencies = #none unit,
         main = #none unit,
         build = #none unit,
@@ -294,11 +294,11 @@ Package names may only consist of letters, digits and underscores!"
                     case s {
                         "any" -> {} "c" -> {} "js" -> {}
                     } else {
-                        encountered.error = #some "'_' is not a valid target!"
+                        encountered.error = #some "'_' is not a valid ctarget!"
                             |> str::fmt([s])
                         return #end unit
                     }
-                    project.target = #some s
+                    project.ctarget = #some s
                 }
                 #err e -> {
                     encountered.error = #some e

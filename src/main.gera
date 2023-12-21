@@ -87,13 +87,13 @@ proc main() {
                     return panic("")
                 })
             root_project |> build::build_project()
-            var root_target = root_project.target
+            var root_ctarget = root_project.ctarget
                 |> opt::expect("enforced by 'build_project'")
             var project_name = root_project.name
                 |> opt::expect("enforced by 'build_project'")
             var args_str = args |> arr::iter() |> iter::skip(2)
                 |> str::join(" ")
-            case root_target {
+            case root_ctarget {
                 "c" -> {
                     ".gerap" |> concat(io::file_sep())
                         |> concat(project_name)
@@ -109,7 +109,7 @@ proc main() {
                 }
             } else {
                 "A package of type '_' cannot be directly executed!"
-                    |> str::fmt([root_target])
+                    |> str::fmt([root_ctarget])
                     |> io::println()
                 prc::exit(1)
             }
