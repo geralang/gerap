@@ -2,7 +2,9 @@
 
 The package manager for [the Gera programming language](https://github.com/typesafeschwalbe/gerac).
 
-## Dependencies
+## Installation
+
+### Dependencies
 
 `gerap` has the following dependencies (some of which might not be needed depending on your use case), which shall be in the PATH or overwritten with their respective environment variables if needed:
 - `git`
@@ -17,6 +19,14 @@ The package manager for [the Gera programming language](https://github.com/types
 - `node`
   - default is `node`, overwrite with `GERAP_NODE_PATH`)
   - required when a package with `target = "js"` is ran
+
+### Pre-built binaries
+
+Pre-built binaries of the latest release are available for x86_64 on Windows, Linux and macOS. Consider building from source for other targets.
+
+### Building from source
+
+To build `gerap` from source, clone the repository and run `build.sh`. This requires `git`, `gerac` and a C compiler (under the alias `cc`) to be in the PATH.
 
 ## CLI Usage
 
