@@ -205,8 +205,13 @@ pub proc parse_file(file) {
         dependencies = #none unit,
         main = #none unit,
         build = #none unit,
-        link = #none unit,
-        include = #none unit
+        build_c = #none unit,
+        build_js = #none unit,
+        link_c = #none unit,
+        link_js = #none unit,
+        include = #none unit,
+        include_c = #none unit,
+        include_js = #none unit
     }
     var tokens = file |> as_tokens()
     var encountered = { error = #none unit }
@@ -326,8 +331,29 @@ Package names may only consist of letters, digits and underscores!"
                     return #end unit
                 }
             }
-            "link" -> case tokens |> parse_string_list() {
-                #ok l -> project.link = #some l
+            "build_c" -> case tokens |> parse_string() {
+                #ok s -> project.build_c = #some s
+                #err e -> {
+                    encountered.error = #some e
+                    return #end unit
+                }
+            }
+            "build_js" -> case tokens |> parse_string() {
+                #ok s -> project.build_js = #some s
+                #err e -> {
+                    encountered.error = #some e
+                    return #end unit
+                }
+            }
+            "link_c" -> case tokens |> parse_string_list() {
+                #ok l -> project.link_c = #some l
+                #err e -> {
+                    encountered.error = #some e
+                    return #end unit
+                }
+            }
+            "link_js" -> case tokens |> parse_string_list() {
+                #ok l -> project.link_js = #some l
                 #err e -> {
                     encountered.error = #some e
                     return #end unit
@@ -335,6 +361,20 @@ Package names may only consist of letters, digits and underscores!"
             }
             "include" -> case tokens |> parse_string_list() {
                 #ok l -> project.include = #some l
+                #err e -> {
+                    encountered.error = #some e
+                    return #end unit
+                }
+            }
+            "include_c" -> case tokens |> parse_string_list() {
+                #ok l -> project.include_c = #some l
+                #err e -> {
+                    encountered.error = #some e
+                    return #end unit
+                }
+            }
+            "include_js" -> case tokens |> parse_string_list() {
+                #ok l -> project.include_js = #some l
                 #err e -> {
                     encountered.error = #some e
                     return #end unit

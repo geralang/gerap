@@ -56,25 +56,62 @@ pub proc build_project(root_project) {
                 prc::exit(1)
             }
         })
-    root_project.link |> opt::map(|l| {
-            case root_ctarget != "c" && root_ctarget != "js" -> {
-                "Package '_' has ctarget type '_', but defines files to link!"
-                    |> str::fmt([root_name, root_ctarget])
-                    |> io::println()
-                prc::exit(1)
+    root_project.build_c |> opt::map(|command| {
+            case root_ctarget == "c" -> {
+                var build_cmd = process_build_command(command)
+                case env::run(build_cmd) != 0 -> {
+                    "Build command failed!"
+                        |> io::println()
+                    prc::exit(1)
+                }
             }
-            l |> arr::iter() |> iter::for_each(|f| {
-                case linked_files |> vec::iter()
-                    |> iter::find(|c| c == f)
-                    |> opt::is_none()
-                    -> linked_files |> vec::push(f)
-            })
-            return unit
+        })
+    root_project.build_js |> opt::map(|command| {
+            case root_ctarget == "js" -> {
+                var build_cmd = process_build_command(command)
+                case env::run(build_cmd) != 0 -> {
+                    "Build command failed!"
+                        |> io::println()
+                    prc::exit(1)
+                }
+            }
+        })
+    root_project.link_c |> opt::map(|l| {
+            case root_ctarget == "c" -> {
+                l |> arr::iter() |> iter::for_each(|f| {
+                    case linked_files |> vec::iter()
+                        |> iter::find(|c| c == f)
+                        |> opt::is_none()
+                        -> linked_files |> vec::push(f)
+                })
+            }
+        })
+    root_project.link_js |> opt::map(|l| {
+            case root_ctarget == "js" -> {
+                l |> arr::iter() |> iter::for_each(|f| {
+                    case linked_files |> vec::iter()
+                        |> iter::find(|c| c == f)
+                        |> opt::is_none()
+                        -> linked_files |> vec::push(f)
+                })
+            }
         })
     root_project.include |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
             case included_files |> vec::iter()
                 |> iter::find(|c| c == f)
                 |> opt::is_none()
+                -> included_files |> vec::push(f)
+        }))
+    root_project.include_c |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
+            case root_ctarget == "c" && (included_files |> vec::iter()
+                |> iter::find(|c| c == f)
+                |> opt::is_none())
+                -> included_files |> vec::push(f)
+        }))
+    root_project.include_js |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
+            case root_ctarget == "js" && (included_files |> vec::iter()
+                |> iter::find(|c| c == f)
+                |> opt::is_none())
                 -> included_files |> vec::push(f)
         }))
     var gera_files_str = source_files |> vec::iter()
@@ -240,35 +277,83 @@ Build command failed!"
                 }
                 io::set_cwd(og_cwd)
             })
-            dep.link |> opt::map(|l| {
-                    case dep_ctarget != "c" && dep_ctarget != "js" -> {
-                        "The dependency '_' has ctarget type '_', \
-but defines files to link!"
-                            |> str::fmt([dep_name, dep_ctarget])
+            dep.build_c |> opt::map(|command| {
+                case project_ctarget == "c" -> {
+                    var og_cwd = io::get_cwd()
+                    io::set_cwd(dep_dir)
+                    var build_cmd = process_build_command(command)
+                    case env::run(build_cmd) != 0 -> {
+                        "(In dependency '_')
+    Build command failed!"
+                            |> str::fmt([dep_name])
                             |> io::println()
                         prc::exit(1)
                     }
+                    io::set_cwd(og_cwd)
+                }
+            })
+            dep.build_js |> opt::map(|command| {
+                case project_ctarget == "js" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
-                    l |> arr::iter()
-                        |> iter::map(|f| io::canonicalize(f)
-                            |> res::unwrap_or_else(|e| {
-                                "(In dependency '_')
-    Unable to find linked file '_'!"
-                                    |> str::fmt([dep_name, f])
-                                    |> io::println()
-                                prc::exit(1)
-                                return panic("")
-                            })
-                        )
-                        |> iter::for_each(|f| {
-                            case linked_files |> vec::iter()
-                                |> iter::find(|c| c == f)
-                                |> opt::is_none()
-                                -> linked_files |> vec::push(f)
-                        })
+                    var build_cmd = process_build_command(command)
+                    case env::run(build_cmd) != 0 -> {
+                        "(In dependency '_')
+    Build command failed!"
+                            |> str::fmt([dep_name])
+                            |> io::println()
+                        prc::exit(1)
+                    }
                     io::set_cwd(og_cwd)
-                    return unit
+                }
+            })
+            dep.link_c |> opt::map(|l| {
+                    case project_ctarget == "c" -> {
+                        var og_cwd = io::get_cwd()
+                        io::set_cwd(dep_dir)
+                        l |> arr::iter()
+                            |> iter::map(|f| io::canonicalize(f)
+                                |> res::unwrap_or_else(|e| {
+                                    "(In dependency '_')
+        Unable to find linked file '_'!"
+                                        |> str::fmt([dep_name, f])
+                                        |> io::println()
+                                    prc::exit(1)
+                                    return panic("")
+                                })
+                            )
+                            |> iter::for_each(|f| {
+                                case linked_files |> vec::iter()
+                                    |> iter::find(|c| c == f)
+                                    |> opt::is_none()
+                                    -> linked_files |> vec::push(f)
+                            })
+                        io::set_cwd(og_cwd)
+                    }
+                })
+            dep.link_js |> opt::map(|l| {
+                    case project_ctarget == "js" -> {
+                        var og_cwd = io::get_cwd()
+                        io::set_cwd(dep_dir)
+                        l |> arr::iter()
+                            |> iter::map(|f| io::canonicalize(f)
+                                |> res::unwrap_or_else(|e| {
+                                    "(In dependency '_')
+        Unable to find linked file '_'!"
+                                        |> str::fmt([dep_name, f])
+                                        |> io::println()
+                                    prc::exit(1)
+                                    return panic("")
+                                })
+                            )
+                            |> iter::for_each(|f| {
+                                case linked_files |> vec::iter()
+                                    |> iter::find(|c| c == f)
+                                    |> opt::is_none()
+                                    -> linked_files |> vec::push(f)
+                            })
+                        io::set_cwd(og_cwd)
+                    }
                 })
             dep.include |> opt::map(|l| {
                 var og_cwd = io::get_cwd()
@@ -290,6 +375,50 @@ Unable to find included file '_'!"
                 })
                 io::set_cwd(og_cwd)
                 return unit
+            })
+            dep.include_c |> opt::map(|l| {
+                case project_ctarget == "c" -> {
+                    var og_cwd = io::get_cwd()
+                    io::set_cwd(dep_dir)
+                    l |> arr::iter() |> iter::for_each(|f| {
+                        var fp = io::canonicalize(f)
+                            |> res::unwrap_or_else(|e| {
+                                "(In dependency '_')
+    Unable to find included file '_'!"
+                                    |> str::fmt([dep_name, f])
+                                    |> io::println()
+                                prc::exit(1)
+                                return panic("")
+                            })
+                        case included_files |> vec::iter()
+                            |> iter::find(|c| c == fp)
+                            |> opt::is_none()
+                            -> included_files |> vec::push(fp)
+                    })
+                    io::set_cwd(og_cwd)
+                }
+            })
+            dep.include_js |> opt::map(|l| {
+                case project_ctarget == "js" -> {
+                    var og_cwd = io::get_cwd()
+                    io::set_cwd(dep_dir)
+                    l |> arr::iter() |> iter::for_each(|f| {
+                        var fp = io::canonicalize(f)
+                            |> res::unwrap_or_else(|e| {
+                                "(In dependency '_')
+    Unable to find included file '_'!"
+                                    |> str::fmt([dep_name, f])
+                                    |> io::println()
+                                prc::exit(1)
+                                return panic("")
+                            })
+                        case included_files |> vec::iter()
+                            |> iter::find(|c| c == fp)
+                            |> opt::is_none()
+                            -> included_files |> vec::push(fp)
+                    })
+                    io::set_cwd(og_cwd)
+                }
             })
             resolve_dependencies(
                 dep, dep_ctarget, dep_dir, gera_files, linked_files,
