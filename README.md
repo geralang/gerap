@@ -109,10 +109,26 @@ The file consists of a list of properties, each of which either being:
     - A command to run when processing the package.
     - Must be a string.
     - Note that `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
-- `link` *(optional)*
-  - *(when `target = "c"`)* A list of files to pass to the C compiler when a binary is made.
-  - *(when `target = "js"`)* A list of files whose contents shall be inserted at the top of the output file.
+- `build_c` *(optional)*
+    - A command to run when processing the package. Will only be executed if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
+    - Must be a string.
+    - Note that `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
+- `build_js` *(optional)*
+    - A command to run when processing the package. Will only be executed if the root target type (not the target of this package, but the target type that will be generated) is `"js"`.
+    - Must be a string.
+    - Note that `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
+- `link_c` *(optional)*
+  - A list of files to pass to the C compiler when a binary is made. Will only be linked if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
+  - Must be a list of strings.
+- `link_js` *(optional)*
+  - A list of files whose contents shall be inserted at the top of the output file. Will only be linked if the root target type (not the target of this package, but the target type that will be generated) is `"js"`.
   - Must be a list of strings.
 - `include` *(optional)*
   - A list of files to copy into the output directory (`.gerap`).
+  - Must be a list of strings.
+- `include_c` *(optional)*
+  - A list of files to copy into the output directory (`.gerap`). Will only be included if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
+  - Must be a list of strings.
+- `include_js` *(optional)*
+  - A list of files to copy into the output directory (`.gerap`). Will only be included if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
   - Must be a list of strings.
