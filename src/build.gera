@@ -46,7 +46,7 @@ pub proc build_project(root_project) {
     )
     resolve_dependencies(
         root_project, root_ctarget, ".", source_files, linked_files,
-        included_files
+        included_files, root_ctarget
     )
     root_project.build |> opt::map(|command| {
             var build_cmd = process_build_command(command)
@@ -195,7 +195,7 @@ pub proc build_project(root_project) {
 
 proc resolve_dependencies(
     project, project_ctarget, project_path, gera_files, linked_files,
-    included_files
+    included_files, root_ctarget
 ) {
     project.dependencies
         |> opt::map(|deps| deps |> arr::iter() |> iter::for_each(|d| {
@@ -278,7 +278,7 @@ Build command failed!"
                 io::set_cwd(og_cwd)
             })
             dep.build_c |> opt::map(|command| {
-                case project_ctarget == "c" -> {
+                case root_ctarget == "c" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
                     var build_cmd = process_build_command(command)
@@ -293,7 +293,7 @@ Build command failed!"
                 }
             })
             dep.build_js |> opt::map(|command| {
-                case project_ctarget == "js" -> {
+                case root_ctarget == "js" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
                     var build_cmd = process_build_command(command)
@@ -308,7 +308,7 @@ Build command failed!"
                 }
             })
             dep.link_c |> opt::map(|l| {
-                    case project_ctarget == "c" -> {
+                    case root_ctarget == "c" -> {
                         var og_cwd = io::get_cwd()
                         io::set_cwd(dep_dir)
                         l |> arr::iter()
@@ -332,7 +332,7 @@ Build command failed!"
                     }
                 })
             dep.link_js |> opt::map(|l| {
-                    case project_ctarget == "js" -> {
+                    case root_ctarget == "js" -> {
                         var og_cwd = io::get_cwd()
                         io::set_cwd(dep_dir)
                         l |> arr::iter()
@@ -377,7 +377,7 @@ Unable to find included file '_'!"
                 return unit
             })
             dep.include_c |> opt::map(|l| {
-                case project_ctarget == "c" -> {
+                case root_ctarget == "c" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
                     l |> arr::iter() |> iter::for_each(|f| {
@@ -399,7 +399,7 @@ Unable to find included file '_'!"
                 }
             })
             dep.include_js |> opt::map(|l| {
-                case project_ctarget == "js" -> {
+                case root_ctarget == "js" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
                     l |> arr::iter() |> iter::for_each(|f| {
@@ -422,7 +422,7 @@ Unable to find included file '_'!"
             })
             resolve_dependencies(
                 dep, dep_ctarget, dep_dir, gera_files, linked_files,
-                included_files
+                included_files, root_ctarget
             )
         }))
 }
