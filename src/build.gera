@@ -128,7 +128,7 @@ pub proc build_project(root_project) {
         |> concat(".") |> concat(root_ctarget)
     var gerac_colored
     case config::get_colored_output() -> gerac_colored = ""
-    else gerac_colored = "-no-color"
+    else gerac_colored = "-c"
     var gerac_cmd = "_ _ -m _ -t _ -o _ _"
         |> str::fmt([
             config::get_gerac_path(),
