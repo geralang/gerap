@@ -6,6 +6,8 @@ use std::*
 
 proc process_build_command(cmd) {
     return cmd
+        |> str::split("@GERAP_COLORED_OUTPUT")
+        |> str::join(config::get_colored_output() |> as_str())
         |> str::split("@GERAP_GERAC_PATH")
         |> str::join(config::get_gerac_path())
         |> str::split("@GERAP_GIT_PATH")
@@ -124,13 +126,17 @@ pub proc build_project(root_project) {
         })
     var output_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
         |> concat(".") |> concat(root_ctarget)
-    var gerac_cmd = "_ _ -m _ -t _ -o _"
+    var gerac_colored
+    case config::get_colored_output() -> gerac_colored = ""
+    else gerac_colored = "-no-color"
+    var gerac_cmd = "_ _ -m _ -t _ -o _ _"
         |> str::fmt([
             config::get_gerac_path(),
             gera_files_str,
             main_path,
             root_ctarget,
-            output_file
+            output_file,
+            gerac_colored
         ])
     case env::run(gerac_cmd) != 0 -> {
         "Unable to compile package '_'!"

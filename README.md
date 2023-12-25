@@ -59,6 +59,10 @@ gerap clean
 ```
 Deletes the `.gerap`-directory (output directory). This will result in all  non-local dependencies being downloaded again the next time the package is built.
 
+### Disabling Color
+
+To disable colored output, set the `GERAP_COLORED_OUTPUT` environment variable to something other than `true`.
+
 ## Package Configuration (`config.gpc`)
 
 A package is defined by its `config.gpc`. When a new package is created with `gerap new <name>` or `gerap init`, the default configuration file looks like this:
@@ -108,15 +112,15 @@ The file consists of a list of properties, each of which either being:
 - `build` *(optional)*
     - A command to run when processing the package.
     - Must be a string.
-    - Note that `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
+    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
 - `build_c` *(optional)*
     - A command to run when processing the package. Will only be executed if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
     - Must be a string.
-    - Note that `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
+    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
 - `build_js` *(optional)*
     - A command to run when processing the package. Will only be executed if the root target type (not the target of this package, but the target type that will be generated) is `"js"`.
     - Must be a string.
-    - Note that `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
+    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
 - `link_c` *(optional)*
   - A list of files to pass to the C compiler when a binary is made. Will only be linked if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
   - Must be a list of strings.
@@ -125,7 +129,7 @@ The file consists of a list of properties, each of which either being:
   - Must be a list of strings.
 - `include` *(optional)*
   - A list of files to copy into the output directory (`.gerap`).
-  - Must be a list of strings.
+  - Must be a list of strings.  
 - `include_c` *(optional)*
   - A list of files to copy into the output directory (`.gerap`). Will only be included if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
   - Must be a list of strings.

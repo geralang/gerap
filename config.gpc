@@ -1,7 +1,7 @@
 name = "gerap"
 description = "The package manager for the Gera programming language."
 authors = ["TypeSafeSchwalbe"]
-version = "0.3"
+version = "0.3.1"
 target = "c"
 dependencies = [
     <https://github.com/typesafeschwalbe/gerastd>

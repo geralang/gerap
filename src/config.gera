@@ -3,6 +3,12 @@ mod gerap::config
 
 use std::(env, opt)
 
+pub proc get_colored_output() {
+    return env::get_var("GERAP_COLORED_OUTPUT")
+        |> opt::map(|v| v == "true")
+        |> opt::unwrap_or(true)
+}
+
 pub proc get_gerac_path() {
     return env::get_var("GERAP_GERAC_PATH")
         |> opt::unwrap_or("gerac")
