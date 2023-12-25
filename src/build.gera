@@ -151,17 +151,13 @@ pub proc build_project(root_project) {
                 |> str::join(" ")
             var exec_file = ".gerap" |> concat(io::file_sep())
                 |> concat(root_name)
-            var cc_colored
-            case config::get_colored_output() -> cc_colored = ""
-            else cc_colored = "-fdiagnostics-plain-output"
-            var cc_cmd = "_ _ _ -lm _-o _ _"
+            var cc_cmd = "_ _ _ -lm _-o _"
                 |> str::fmt([
                     config::get_cc_path(),
                     linked_files_str,
                     output_file,
                     config::get_cc_args(), // adds space at the end
-                    exec_file,
-                    cc_colored
+                    exec_file
                 ])
             case env::run(cc_cmd) != 0 -> {
                 "Unable to compile package '_'!"
