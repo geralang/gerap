@@ -4,7 +4,7 @@ mod gerap::build
 use gerap::(config, parser)
 use std::*
 
-proc process_build_command(cmd) {
+proc process_build_command(cmd, output_path, c_core_deps_path) {
     return cmd
         |> str::split("@GERAP_COLORED_OUTPUT")
         |> str::join(config::get_colored_output() |> as_str())
@@ -18,6 +18,28 @@ proc process_build_command(cmd) {
         |> str::join(config::get_cc_args())
         |> str::split("@GERAP_NODE_PATH")
         |> str::join(config::get_node_path())
+        |> str::split("@GERAP_OUTPUT_PATH")
+        |> str::join(output_path)
+        |> str::split("@GERAP_CCOREDEPS_PATH")
+        |> str::join(c_core_deps_path)
+}
+
+proc copy_included_file(f, output_folder_path) {
+    var content = f |> io::read_file() |> res::unwrap_or_else(|e| {
+        "Unable to copy included file '_': _!"
+            |> str::fmt([f, e])
+            |> io::println()
+        prc::exit(1)
+        return panic("")
+    })
+    var fname = f |> str::split(io::file_sep()) |> iter::last()
+        |> opt::expect("'split' returns >1 elements")
+    mut var fdest = output_folder_path
+    case !str::ends_with(fdest, io::file_sep()) -> {
+        fdest = fdest |> concat(io::file_sep())
+    }
+    fdest = fdest |> concat(fname)
+    content |> io::write_file(fdest)
 }
 
 pub proc build_project(root_project) {
@@ -27,6 +49,8 @@ pub proc build_project(root_project) {
             return panic("")
         })
     io::create_dir(".gerap")
+    var output_path = io::canonicalize(".gerap")
+        |> res::expect("we just created it")
     var root_ctarget = root_project.ctarget |> opt::unwrap_or_else(|| {
             "Package '_' does not define a ctarget type!"
                 |> str::fmt([root_name])
@@ -40,18 +64,65 @@ pub proc build_project(root_project) {
             |> io::println()
         prc::exit(1)
     }
+    var c_core_deps_path
+    var c_core_deps_file
+    case root_ctarget == "c" -> {
+        var root_c_core_deps = root_project.c_core_deps |> opt::unwrap_or(
+                #url "https://github.com/typesafeschwalbe/geraccoredeps"
+            )
+        var ccdp
+        case root_c_core_deps {
+            #url u -> {
+                ccdp = ".gerap/.ccoredeps"
+                case !io::file_exists(ccdp) -> {
+                    case env::run(
+                        "_ clone _ _"
+                            |> str::fmt([
+                                config::get_git_path(),
+                                u,
+                                ccdp
+                            ])
+                    ) != 0 -> {
+                        io::println("Unable to clone C core dependencies!")
+                        prc::exit(1)
+                    }
+                }
+            }
+            #file f -> ccdp = f
+        }
+        c_core_deps_path = ccdp
+            |> io::canonicalize()
+            |> res::unwrap_or_else(|e| {
+                "Unable to locate C core dependencies at '_'!"
+                    |> str::fmt([ccdp])
+                    |> io::println()
+                prc::exit(1)
+                return panic("")
+            })
+        mut var ccdf = c_core_deps_path
+        case !str::ends_with(ccdf, io::file_sep())
+            -> ccdf = ccdf |> concat(io::file_sep())
+        ccdf = ccdf |> concat("coredeps.c")
+        case io::file_exists(ccdf) && res::expect(io::is_file(ccdf), "exists")
+            -> c_core_deps_file = ccdf |> concat(" ")
+        else c_core_deps_file = ""
+    } else {
+        c_core_deps_path = ""
+        c_core_deps_file = ""
+    }
     var source_files = vec::new()
     var linked_files = vec::new()
-    var included_files = vec::new()
     collect_source_files(
         "src", #none unit, static [".gera", ".gem"], source_files
     )
     resolve_dependencies(
         root_project, root_ctarget, ".", source_files, linked_files,
-        included_files, root_ctarget
+        root_ctarget, output_path, c_core_deps_path
     )
     root_project.build |> opt::map(|command| {
-            var build_cmd = process_build_command(command)
+            var build_cmd = process_build_command(
+                command, output_path, c_core_deps_path
+            )
             case env::run(build_cmd) != 0 -> {
                 "Build command failed!"
                     |> io::println()
@@ -60,7 +131,9 @@ pub proc build_project(root_project) {
         })
     root_project.build_c |> opt::map(|command| {
             case root_ctarget == "c" -> {
-                var build_cmd = process_build_command(command)
+                var build_cmd = process_build_command(
+                    command, output_path, c_core_deps_path
+                )
                 case env::run(build_cmd) != 0 -> {
                     "Build command failed!"
                         |> io::println()
@@ -70,7 +143,9 @@ pub proc build_project(root_project) {
         })
     root_project.build_js |> opt::map(|command| {
             case root_ctarget == "js" -> {
-                var build_cmd = process_build_command(command)
+                var build_cmd = process_build_command(
+                    command, output_path, c_core_deps_path
+                )
                 case env::run(build_cmd) != 0 -> {
                     "Build command failed!"
                         |> io::println()
@@ -99,22 +174,13 @@ pub proc build_project(root_project) {
             }
         })
     root_project.include |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
-            case included_files |> vec::iter()
-                |> iter::find(|c| c == f)
-                |> opt::is_none()
-                -> included_files |> vec::push(f)
+            copy_included_file(f, output_path)
         }))
     root_project.include_c |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
-            case root_ctarget == "c" && (included_files |> vec::iter()
-                |> iter::find(|c| c == f)
-                |> opt::is_none())
-                -> included_files |> vec::push(f)
+            case root_ctarget == "c" -> copy_included_file(f, output_path)
         }))
     root_project.include_js |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
-            case root_ctarget == "js" && (included_files |> vec::iter()
-                |> iter::find(|c| c == f)
-                |> opt::is_none())
-                -> included_files |> vec::push(f)
+            case root_ctarget == "js" -> copy_included_file(f, output_path)
         }))
     var gera_files_str = source_files |> vec::iter()
         |> iter::map(|f| "\"_\"" |> str::fmt([f]))
@@ -151,13 +217,15 @@ pub proc build_project(root_project) {
                 |> str::join(" ")
             var exec_file = ".gerap" |> concat(io::file_sep())
                 |> concat(root_name)
-            var cc_cmd = "_ _ _ -lm _-o _"
+            var cc_cmd = "_ _ _ _-lm _-o _ -I _"
                 |> str::fmt([
                     config::get_cc_path(),
                     linked_files_str,
                     output_file,
-                    config::get_cc_args(), // adds space at the end
-                    exec_file
+                    c_core_deps_file, // adds space at the end if exists
+                    config::get_cc_args(), // adds space at the end if exists
+                    exec_file,
+                    c_core_deps_path
                 ])
             case env::run(cc_cmd) != 0 -> {
                 "Unable to compile package '_'!"
@@ -184,24 +252,11 @@ pub proc build_project(root_project) {
             linked.output |> concat(output) |> io::write_file(output_file)
         }
     }
-    included_files |> vec::iter() |> iter::for_each(|f| {
-        var content = f |> io::read_file() |> res::unwrap_or_else(|e| {
-            "Unable to copy included file '_': _!"
-                |> str::fmt([f, e])
-                |> io::println()
-            prc::exit(1)
-            return panic("")
-        })
-        var fname = f |> str::split(io::file_sep()) |> iter::last()
-            |> opt::expect("'split' returns >1 elements")
-        var fdest = ".gerap" |> concat(io::file_sep()) |> concat(fname)
-        content |> io::write_file(fdest)
-    })
 }
 
 proc resolve_dependencies(
     project, project_ctarget, project_path, gera_files, linked_files,
-    included_files, root_ctarget
+    root_ctarget, output_path, c_core_deps_path
 ) {
     project.dependencies
         |> opt::map(|deps| deps |> arr::iter() |> iter::for_each(|d| {
@@ -273,7 +328,9 @@ but its dependant has the ctarget type '_'!"
             dep.build |> opt::map(|command| {
                 var og_cwd = io::get_cwd()
                 io::set_cwd(dep_dir)
-                var build_cmd = process_build_command(command)
+                var build_cmd = process_build_command(
+                    command, output_path, c_core_deps_path
+                )
                 case env::run(build_cmd) != 0 -> {
                     "(In dependency '_')
 Build command failed!"
@@ -287,10 +344,12 @@ Build command failed!"
                 case root_ctarget == "c" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
-                    var build_cmd = process_build_command(command)
+                    var build_cmd = process_build_command(
+                        command, output_path, c_core_deps_path
+                    )
                     case env::run(build_cmd) != 0 -> {
                         "(In dependency '_')
-    Build command failed!"
+Build command failed!"
                             |> str::fmt([dep_name])
                             |> io::println()
                         prc::exit(1)
@@ -302,10 +361,12 @@ Build command failed!"
                 case root_ctarget == "js" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
-                    var build_cmd = process_build_command(command)
+                    var build_cmd = process_build_command(
+                        command, output_path, c_core_deps_path
+                    )
                     case env::run(build_cmd) != 0 -> {
                         "(In dependency '_')
-    Build command failed!"
+Build command failed!"
                             |> str::fmt([dep_name])
                             |> io::println()
                         prc::exit(1)
@@ -321,7 +382,7 @@ Build command failed!"
                             |> iter::map(|f| io::canonicalize(f)
                                 |> res::unwrap_or_else(|e| {
                                     "(In dependency '_')
-        Unable to find linked file '_'!"
+Unable to find linked file '_'!"
                                         |> str::fmt([dep_name, f])
                                         |> io::println()
                                     prc::exit(1)
@@ -345,7 +406,7 @@ Build command failed!"
                             |> iter::map(|f| io::canonicalize(f)
                                 |> res::unwrap_or_else(|e| {
                                     "(In dependency '_')
-        Unable to find linked file '_'!"
+Unable to find linked file '_'!"
                                         |> str::fmt([dep_name, f])
                                         |> io::println()
                                     prc::exit(1)
@@ -374,10 +435,7 @@ Unable to find included file '_'!"
                             prc::exit(1)
                             return panic("")
                         })
-                    case included_files |> vec::iter()
-                        |> iter::find(|c| c == fp)
-                        |> opt::is_none()
-                        -> included_files |> vec::push(fp)
+                    copy_included_file(fp, output_path)
                 })
                 io::set_cwd(og_cwd)
                 return unit
@@ -390,16 +448,13 @@ Unable to find included file '_'!"
                         var fp = io::canonicalize(f)
                             |> res::unwrap_or_else(|e| {
                                 "(In dependency '_')
-    Unable to find included file '_'!"
+Unable to find included file '_'!"
                                     |> str::fmt([dep_name, f])
                                     |> io::println()
                                 prc::exit(1)
                                 return panic("")
                             })
-                        case included_files |> vec::iter()
-                            |> iter::find(|c| c == fp)
-                            |> opt::is_none()
-                            -> included_files |> vec::push(fp)
+                        copy_included_file(fp, output_path)
                     })
                     io::set_cwd(og_cwd)
                 }
@@ -412,23 +467,20 @@ Unable to find included file '_'!"
                         var fp = io::canonicalize(f)
                             |> res::unwrap_or_else(|e| {
                                 "(In dependency '_')
-    Unable to find included file '_'!"
+Unable to find included file '_'!"
                                     |> str::fmt([dep_name, f])
                                     |> io::println()
                                 prc::exit(1)
                                 return panic("")
                             })
-                        case included_files |> vec::iter()
-                            |> iter::find(|c| c == fp)
-                            |> opt::is_none()
-                            -> included_files |> vec::push(fp)
+                        copy_included_file(fp, output_path)
                     })
                     io::set_cwd(og_cwd)
                 }
             })
             resolve_dependencies(
                 dep, dep_ctarget, dep_dir, gera_files, linked_files,
-                included_files, root_ctarget
+                root_ctarget, output_path, c_core_deps_path
             )
         }))
 }

@@ -10,6 +10,7 @@ The package manager for [the Gera programming language](https://github.com/types
 - `git`
   - default is `git`, overwrite with `GERAP_GIT_PATH`
   - required when a git repository containing a package is used as a dependency
+  - required when a package with `target = "c"` is built or ran and no custom core deps are provided
 - `gerac`
   - default is `gerac`, overwrite with `GERAP_GERAC_PATH`
   - required when Gera source code is compiled
@@ -112,15 +113,15 @@ The file consists of a list of properties, each of which either being:
 - `build` *(optional)*
     - A command to run when processing the package.
     - Must be a string.
-    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
+    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS`, `@GERAP_CCOREDEPS_PATH`, `@GERAP_OUTPUT_PATH` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
 - `build_c` *(optional)*
     - A command to run when processing the package. Will only be executed if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
     - Must be a string.
-    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
+    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS`, `@GERAP_CCOREDEPS_PATH`, `@GERAP_OUTPUT_PATH` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
 - `build_js` *(optional)*
     - A command to run when processing the package. Will only be executed if the root target type (not the target of this package, but the target type that will be generated) is `"js"`.
     - Must be a string.
-    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
+    - Note that `@GERAP_COLORED_OUTPUT`, `@GERAP_GIT_PATH`, `@GERAP_GERAC_PATH`, `@GERAP_CC_PATH`, `@GERAP_CC_ARGS`, `@GERAP_CCOREDEPS_PATH`, `@GERAP_OUTPUT_PATH` and `@GERAP_NODE_PATH` will be replaced with the respective values `gerap` is using internally before the command is executed.
 - `link_c` *(optional)*
   - A list of files to pass to the C compiler when a binary is made. Will only be linked if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
   - Must be a list of strings.
@@ -136,3 +137,6 @@ The file consists of a list of properties, each of which either being:
 - `include_js` *(optional)*
   - A list of files to copy into the output directory (`.gerap`). Will only be included if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
   - Must be a list of strings.
+- `c_core_deps` *(optional)*
+  - The implementation of the core dependencies to use. If not specified, [the default implementation](https://github.com/typesafeschwalbe/geraccoredeps) will be cloned with `git`.
+  - Must be a string referring to a local directory or git repository with a `coredeps.c`-file at its root.

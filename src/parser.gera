@@ -175,6 +175,23 @@ proc parse_string_list(tokens) {
     })
 }
 
+proc parse_resource(tokens) {
+    case tokens |> iter::next() {
+        #none -> return #err unexpected_end(
+            "a string or URL"
+        )
+        #some p -> case p {
+            #ok t -> case t.type {
+                "string" -> return #ok #file t.content
+                "url" -> return #ok #url t.content
+            } else return #err unmet_expect(
+                "a string or URL", t.content
+            )
+            #err e -> return #err e
+        }
+    }
+}
+
 proc parse_resource_list(tokens) {
     return tokens |> parse_list(|| {
         case tokens |> iter::next() {
@@ -211,7 +228,8 @@ pub proc parse_file(file) {
         link_js = #none unit,
         include = #none unit,
         include_c = #none unit,
-        include_js = #none unit
+        include_js = #none unit,
+        c_core_deps = #none unit
     }
     var tokens = file |> as_tokens()
     var encountered = { error = #none unit }
@@ -375,6 +393,13 @@ Package names may only consist of letters, digits and underscores!"
             }
             "include_js" -> case tokens |> parse_string_list() {
                 #ok l -> project.include_js = #some l
+                #err e -> {
+                    encountered.error = #some e
+                    return #end unit
+                }
+            }
+            "c_core_deps" -> case tokens |> parse_resource() {
+                #ok s -> project.c_core_deps = #some s
                 #err e -> {
                     encountered.error = #some e
                     return #end unit
