@@ -103,7 +103,7 @@ pub proc build_project(root_project) {
         case !str::ends_with(ccdf, io::file_sep())
             -> ccdf = ccdf |> concat(io::file_sep())
         ccdf = ccdf |> concat("coredeps.c")
-        case io::file_exists(ccdf) && res::expect(io::is_file(ccdf), "exists")
+        case io::file_exists(ccdf) && io::is_file(ccdf)
             -> c_core_deps_file = ccdf |> concat(" ")
         else c_core_deps_file = ""
     } else {
@@ -488,7 +488,7 @@ Unable to find included file '_'!"
 proc clone_dependency(url) {
     var h = url |> hash()
     var dest_dir = ".gerap" |> concat(io::file_sep()) |> concat(h |> as_str())
-    case io::is_dir(dest_dir) |> res::unwrap_or(false) -> return dest_dir
+    case io::is_dir(dest_dir) -> return dest_dir
     case env::run(
         "_ clone _ _"
             |> str::fmt([
@@ -518,15 +518,13 @@ proc collect_source_files(path, dep_name, extensions, dest) {
             opt::is_some(extensions 
                 |> arr::iter() 
                 |> iter::find(|e| name |> str::ends_with(e))
-            ) || res::unwrap_or(
-                path |> concat(io::file_sep()) |> concat(name) |> io::is_dir(),
-                false
+            ) || (
+                path |> concat(io::file_sep()) |> concat(name) |> io::is_dir()
             )
         )
         |> iter::for_each(|name| {
             var item_path = path |> concat(io::file_sep()) |> concat(name)
-            case item_path |> io::is_file()
-                    |> res::expect("Unable to find file!") -> {
+            case item_path |> io::is_file() -> {
                 case dest |> vec::iter()
                     |> iter::find(|c| c == item_path)
                     |> opt::is_none()

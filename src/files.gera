@@ -78,8 +78,7 @@ pub proc nuke_dir(path) {
         |> arr::iter()
         |> iter::for_each(|n| {
             var p = path |> concat(io::file_sep()) |> concat(n)
-            case io::is_dir(p) |> res::unwrap_or(false)
-                -> nuke_dir(p)
+            case io::is_dir(p) -> nuke_dir(p)
             else io::delete_file(p)
         })
     io::delete_dir(path)
