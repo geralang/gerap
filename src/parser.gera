@@ -1,7 +1,7 @@
 
 mod gerap::parser
 
-use std::(vec, str, iter, opt)
+use std::(str, iter, opt, arr)
 
 proc is_digit(c) {
     var digits = "0123456789"
@@ -134,8 +134,10 @@ proc parse_list(tokens, item_parser) {
             #err e -> return #err e
         }
     }
-    var items = vec::new()
-    var encountered = { error = #none unit }
+    var encountered = {
+        error = #none unit,
+        items = []
+    }
     exhaust(|| {
         case item_parser() {
             #err e -> {
@@ -145,7 +147,7 @@ proc parse_list(tokens, item_parser) {
             #ok value -> case value {
                 #end -> return #end unit
                 #next v -> {
-                    items |> vec::push(v)
+                    encountered.items = encountered.items |> arr::concat([v])
                     return #next unit
                 }
             }
@@ -153,7 +155,7 @@ proc parse_list(tokens, item_parser) {
     })
     return encountered.error
         |> opt::map(|e| #err e)
-        |> opt::unwrap_or_else(|| #ok items |> vec::as_array())
+        |> opt::unwrap_or_else(|| #ok encountered.items)
 }
 
 proc parse_string_list(tokens) {

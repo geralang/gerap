@@ -110,8 +110,8 @@ pub proc build_project(root_project) {
         c_core_deps_path = ""
         c_core_deps_file = ""
     }
-    var source_files = vec::new()
-    var linked_files = vec::new()
+    var source_files = { files = [] }
+    var linked_files = { files = [] }
     collect_source_files(
         "src", #none unit, static [".gera", ".gem"], source_files
     )
@@ -156,20 +156,22 @@ pub proc build_project(root_project) {
     root_project.link_c |> opt::map(|l| {
             case root_ctarget == "c" -> {
                 l |> arr::iter() |> iter::for_each(|f| {
-                    case linked_files |> vec::iter()
+                    case linked_files.files |> arr::iter()
                         |> iter::find(|c| c == f)
                         |> opt::is_none()
-                        -> linked_files |> vec::push(f)
+                        -> linked_files.files = linked_files.files
+                            |> arr::concat([f])
                 })
             }
         })
     root_project.link_js |> opt::map(|l| {
             case root_ctarget == "js" -> {
                 l |> arr::iter() |> iter::for_each(|f| {
-                    case linked_files |> vec::iter()
+                    case linked_files.files |> arr::iter()
                         |> iter::find(|c| c == f)
                         |> opt::is_none()
-                        -> linked_files |> vec::push(f)
+                        -> linked_files.files = linked_files.files
+                            |> arr::concat([f])
                 })
             }
         })
@@ -182,7 +184,7 @@ pub proc build_project(root_project) {
     root_project.include_js |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
             case root_ctarget == "js" -> copy_included_file(f, output_path)
         }))
-    var gera_files_str = source_files |> vec::iter()
+    var gera_files_str = source_files.files |> arr::iter()
         |> iter::map(|f| "\"_\"" |> str::fmt([f]))
         |> str::join(" ")
     var main_path = root_project.main |> opt::unwrap_or_else(|| {
@@ -212,7 +214,7 @@ pub proc build_project(root_project) {
     }
     case root_ctarget {
         "c" -> {
-            var linked_files_str = linked_files |> vec::iter()
+            var linked_files_str = linked_files.files |> arr::iter()
                 |> iter::map(|f| "\"_\"" |> str::fmt([f]))
                 |> str::join(" ")
             var exec_file = ".gerap" |> concat(io::file_sep())
@@ -236,7 +238,7 @@ pub proc build_project(root_project) {
         }
         "js" -> {
             var linked = { output = "" }
-            linked_files |> vec::iter() |> iter::for_each(|f| {
+            linked_files.files |> arr::iter() |> iter::for_each(|f| {
                 linked.output = linked.output
                     |> concat(f |> io::read_file() |> res::unwrap_or_else(|e| {
                         "Unable to find linked file '_': _"
@@ -390,10 +392,11 @@ Unable to find linked file '_'!"
                                 })
                             )
                             |> iter::for_each(|f| {
-                                case linked_files |> vec::iter()
+                                case linked_files.files |> arr::iter()
                                     |> iter::find(|c| c == f)
                                     |> opt::is_none()
-                                    -> linked_files |> vec::push(f)
+                                    -> linked_files.files = linked_files.files
+                                        |> arr::concat([f])
                             })
                         io::set_cwd(og_cwd)
                     }
@@ -414,10 +417,11 @@ Unable to find linked file '_'!"
                                 })
                             )
                             |> iter::for_each(|f| {
-                                case linked_files |> vec::iter()
+                                case linked_files.files |> arr::iter()
                                     |> iter::find(|c| c == f)
                                     |> opt::is_none()
-                                    -> linked_files |> vec::push(f)
+                                    -> linked_files.files = linked_files.files
+                                        |> arr::concat([f])
                             })
                         io::set_cwd(og_cwd)
                     }
@@ -525,10 +529,10 @@ proc collect_source_files(path, dep_name, extensions, dest) {
         |> iter::for_each(|name| {
             var item_path = path |> concat(io::file_sep()) |> concat(name)
             case item_path |> io::is_file() -> {
-                case dest |> vec::iter()
+                case dest.files |> arr::iter()
                     |> iter::find(|c| c == item_path)
                     |> opt::is_none()
-                    -> dest |> vec::push(item_path)
+                    -> dest.files = dest.files |> arr::concat([item_path])
             } else {
                 item_path |> collect_source_files(dep_name, extensions, dest)
             }
