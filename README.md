@@ -74,7 +74,7 @@ authors = ["<name of user>"]
 version = "0.1"
 target = "c"
 dependencies = [
-    <https://github.com/typesafeschwalbe/gerastd-c>
+    <https://github.com/typesafeschwalbe/gerastd>
 ]
 main = "test::main"
 ```
