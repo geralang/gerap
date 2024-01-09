@@ -1,8 +1,10 @@
 
 mod gerap::build
 
-use gerap::(config, parser)
+use gerap::(config, parser, log)
 use std::*
+
+var DEFAULT_CCOREDEPS_REPO = "https://github.com/typesafeschwalbe/geraccoredeps"
 
 proc process_build_command(cmd, output_path, c_core_deps_path) {
     return cmd
@@ -26,11 +28,7 @@ proc process_build_command(cmd, output_path, c_core_deps_path) {
 
 proc copy_included_file(f, output_folder_path) {
     var content = f |> io::read_file() |> res::unwrap_or_else(|e| {
-        "Unable to copy included file '_': _!"
-            |> str::fmt([f, e])
-            |> io::println()
-        prc::exit(1)
-        return panic("")
+        return log::error("copying included file", e)
     })
     var fname = f |> str::split(io::file_sep()) |> iter::last()
         |> opt::expect("'split' returns >1 elements")
@@ -42,49 +40,66 @@ proc copy_included_file(f, output_folder_path) {
     content |> io::write_file(fdest)
 }
 
+proc run_build_command(build_cmd, name) {
+    var args = build_cmd
+        |> str::split(" ")
+        |> iter::filter(|p| length(p) > 0)
+    var build_p = prc::Process(
+        args |> iter::next() |> opt::unwrap_or(""),
+        args |> arr::collect()
+    )
+    log::building(name, || build_p .> is_done())
+    case opt::unwrap_or(build_p .> exit_code(), 1) != 0 -> {
+        log::error(
+            "building " |> concat(name),
+            build_p .> eoutput()
+        )
+    }
+}
+
 pub proc build_project(root_project) {
     var root_name = root_project.name |> opt::unwrap_or_else(|| {
-            io::println("The package does not define a name!")
-            prc::exit(1)
-            return panic("")
+            return log::error(
+                "processing the project",
+                "The project does not define a name!"
+            )
         })
     io::create_dir(".gerap")
     var output_path = io::canonicalize(".gerap")
         |> res::expect("we just created it")
     var root_ctarget = root_project.ctarget |> opt::unwrap_or_else(|| {
-            "Package '_' does not define a ctarget type!"
-                |> str::fmt([root_name])
-                |> io::println()
-            prc::exit(1)
-            return panic("")
+            return log::error(
+                "processing the project",
+                "The project does not define a target type!"
+            )
         })
     case root_ctarget == "any" -> {
-        "Package '_' is of type 'any', but is not a dependency!"
-            |> str::fmt([root_name])
-            |> io::println()
-        prc::exit(1)
+        log::error(
+            "processing the project",
+            "The project is of type 'any', but is not a dependency!"
+        )
     }
     var c_core_deps_path
     var c_core_deps_file
     case root_ctarget == "c" -> {
         var root_c_core_deps = root_project.c_core_deps |> opt::unwrap_or(
-                #url "https://github.com/typesafeschwalbe/geraccoredeps"
+                #url DEFAULT_CCOREDEPS_REPO
             )
         var ccdp
         case root_c_core_deps {
             #url u -> {
                 ccdp = ".gerap/.ccoredeps"
                 case !io::file_exists(ccdp) -> {
-                    case env::run(
-                        "_ clone _ _"
-                            |> str::fmt([
-                                config::get_git_path(),
-                                u,
-                                ccdp
-                            ])
-                    ) != 0 -> {
-                        io::println("Unable to clone C core dependencies!")
-                        prc::exit(1)
+                    var clone_p = prc::Process(
+                        config::get_git_path(),
+                        ["clone", u, ccdp]
+                    )
+                    log::cloning(u, || clone_p .> is_done())
+                    case opt::unwrap_or(clone_p .> exit_code(), 1) != 0 -> {
+                        log::error(
+                            "cloning the C core dependencies",
+                            clone_p .> eoutput()
+                        )
                     }
                 }
             }
@@ -93,11 +108,11 @@ pub proc build_project(root_project) {
         c_core_deps_path = ccdp
             |> io::canonicalize()
             |> res::unwrap_or_else(|e| {
-                "Unable to locate C core dependencies at '_'!"
-                    |> str::fmt([ccdp])
-                    |> io::println()
-                prc::exit(1)
-                return panic("")
+                return log::error(
+                    "processing the project",
+                    "Unable to locate C core dependencies at '_'!"
+                        |> str::fmt([ccdp])
+                )
             })
         mut var ccdf = c_core_deps_path
         case !str::ends_with(ccdf, io::file_sep())
@@ -120,37 +135,22 @@ pub proc build_project(root_project) {
         root_ctarget, output_path, c_core_deps_path
     )
     root_project.build |> opt::map(|command| {
-            var build_cmd = process_build_command(
+            run_build_command(process_build_command(
                 command, output_path, c_core_deps_path
-            )
-            case env::run(build_cmd) != 0 -> {
-                "Build command failed!"
-                    |> io::println()
-                prc::exit(1)
-            }
+            ), "the project")
         })
     root_project.build_c |> opt::map(|command| {
             case root_ctarget == "c" -> {
-                var build_cmd = process_build_command(
+                run_build_command(process_build_command(
                     command, output_path, c_core_deps_path
-                )
-                case env::run(build_cmd) != 0 -> {
-                    "Build command failed!"
-                        |> io::println()
-                    prc::exit(1)
-                }
+                ), "the project")
             }
         })
     root_project.build_js |> opt::map(|command| {
             case root_ctarget == "js" -> {
-                var build_cmd = process_build_command(
+                run_build_command(process_build_command(
                     command, output_path, c_core_deps_path
-                )
-                case env::run(build_cmd) != 0 -> {
-                    "Build command failed!"
-                        |> io::println()
-                    prc::exit(1)
-                }
+                ), "the project")
             }
         })
     root_project.link_c |> opt::map(|l| {
@@ -188,9 +188,10 @@ pub proc build_project(root_project) {
         |> iter::map(|f| "\"_\"" |> str::fmt([f]))
         |> str::join(" ")
     var main_path = root_project.main |> opt::unwrap_or_else(|| {
-            io::println("Package does not have a defined main procedure!")
-            prc::exit(1)
-            return panic("")
+            return log::error(
+                "processing the project",
+                "The project does not define a main procedure!"
+            )
         })
     var output_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
         |> concat(".") |> concat(root_ctarget)
@@ -206,11 +207,19 @@ pub proc build_project(root_project) {
             output_file,
             gerac_colored
         ])
-    case env::run(gerac_cmd) != 0 -> {
-        "Unable to compile package '_'!"
-            |> str::fmt([root_name])
-            |> io::println()
-        prc::exit(1)
+    var gerac_cmd_args = gerac_cmd
+        |> str::split(" ")
+        |> iter::filter(|p| length(p) > 0)
+    var gerac_p = prc::Process(
+        gerac_cmd_args |> iter::next() |> opt::unwrap_or(""),
+        gerac_cmd_args |> arr::collect()
+    )
+    log::compiling(root_name, || gerac_p .> is_done())
+    case opt::unwrap_or(gerac_p .> exit_code(), 1) != 0 -> {
+        log::error(
+            "compiling " |> concat(root_name),
+            gerac_p .> eoutput()
+        )
     }
     case root_ctarget {
         "c" -> {
@@ -229,11 +238,19 @@ pub proc build_project(root_project) {
                     exec_file,
                     c_core_deps_path
                 ])
-            case env::run(cc_cmd) != 0 -> {
-                "Unable to compile package '_'!"
-                    |> str::fmt([root_name])
-                    |> io::println()
-                prc::exit(1)
+            var cc_cmd_args = cc_cmd
+                |> str::split(" ")
+                |> iter::filter(|p| length(p) > 0)
+            var cc_p = prc::Process(
+                cc_cmd_args |> iter::next() |> opt::unwrap_or(""),
+                cc_cmd_args |> arr::collect()
+            )
+            log::compiling(root_name, || cc_p .> is_done())
+            case opt::unwrap_or(cc_p .> exit_code(), 1) != 0 -> {
+                log::error(
+                    "compiling " |> concat(root_name),
+                    cc_p .> eoutput()
+                )
             }
         }
         "js" -> {
@@ -241,11 +258,10 @@ pub proc build_project(root_project) {
             linked_files.files |> arr::iter() |> iter::for_each(|f| {
                 linked.output = linked.output
                     |> concat(f |> io::read_file() |> res::unwrap_or_else(|e| {
-                        "Unable to find linked file '_': _"
-                            |> str::fmt([f, e])
-                            |> io::println()
-                        prc::exit(1)
-                        return panic("")
+                        return log::error(
+                            "linking file '_'" |> str::fmt([f]),
+                            e
+                        )
                     }))
                     |> concat("\n")
             })
@@ -274,12 +290,12 @@ proc resolve_dependencies(
                     io::set_cwd(project_path)
                     dep_dir = io::canonicalize(f)
                         |> res::unwrap_or_else(|e| {
-"Unable to find local dependency '_'!"
-                            |> str::fmt([f])
-                            |> io::println()
-                        prc::exit(1)
-                        return panic("")
-                    })
+                            return log::error(
+                                "resolving local dependency",
+                                "Unable to find local dependency '_'!"
+                                    |> str::fmt([f])
+                            )
+                        })
                     io::set_cwd(og_cwd)
                     dep_name = f
                 }
@@ -288,39 +304,32 @@ proc resolve_dependencies(
                 |> concat("config.gpc")
             var dep = io::read_file(dep_p_file)
                 |> res::unwrap_or_else(|e| {
-                    "(In dependency '_')
-Unable to find package file ('config.gpc')"
-                        |> str::fmt([dep_name])
-                        |> io::println()
-                    prc::exit(1)
-                    return panic("")
+                    return log::error(
+                        "processing dependency " |> concat(dep_name),
+                        "Unable to locate package configuration file!"
+                    )
                 })
                 |> parser::parse_file()
                 |> res::unwrap_or_else(|e| {
-                    "(In dependency '_')
-Unable to read package file: _"
-                        |> str::fmt([dep_name, e])
-                        |> io::println()
-                    prc::exit(1)
-                    return panic("")
+                    return log::error(
+                        "processing configuration file for "
+                            |> concat(dep_name),
+                        e
+                    )
                 })
             var dep_ctarget = dep.ctarget |> opt::unwrap_or_else(|| {
-                "The dependency '_' does not define a ctarget type!"
-                    |> str::fmt([dep_name])
-                    |> io::println()
-                prc::exit(1)
-                return panic("")
+                return log::error(
+                    "processing dependency " |> concat(dep_name),
+                    "The package does not define a target type!"
+                )
             })
             case project_ctarget != dep_ctarget && dep_ctarget != "any" -> {
-                "The dependency '_' has the ctarget type '_', \
-but its dependant has the ctarget type '_'!"
-                    |> str::fmt([
-                        dep_name,
-                        dep_ctarget,
-                        project_ctarget
-                    ])
-                    |> io::println()
-                prc::exit(1)
+                log::error(
+                    "processing dependency " |> concat(dep_name),
+                    "The package has the target type '_', \
+but its dependent has the target type '_'!"
+                        |> str::fmt([dep_ctarget, project_ctarget])
+                )
             }
             var dep_src_dir = dep_dir |> concat(io::file_sep()) |> concat("src")
             collect_source_files(
@@ -330,32 +339,18 @@ but its dependant has the ctarget type '_'!"
             dep.build |> opt::map(|command| {
                 var og_cwd = io::get_cwd()
                 io::set_cwd(dep_dir)
-                var build_cmd = process_build_command(
+                run_build_command(process_build_command(
                     command, output_path, c_core_deps_path
-                )
-                case env::run(build_cmd) != 0 -> {
-                    "(In dependency '_')
-Build command failed!"
-                        |> str::fmt([dep_name])
-                        |> io::println()
-                    prc::exit(1)
-                }
+                ), dep_name)
                 io::set_cwd(og_cwd)
             })
             dep.build_c |> opt::map(|command| {
                 case root_ctarget == "c" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
-                    var build_cmd = process_build_command(
+                    run_build_command(process_build_command(
                         command, output_path, c_core_deps_path
-                    )
-                    case env::run(build_cmd) != 0 -> {
-                        "(In dependency '_')
-Build command failed!"
-                            |> str::fmt([dep_name])
-                            |> io::println()
-                        prc::exit(1)
-                    }
+                    ), dep_name)
                     io::set_cwd(og_cwd)
                 }
             })
@@ -363,16 +358,9 @@ Build command failed!"
                 case root_ctarget == "js" -> {
                     var og_cwd = io::get_cwd()
                     io::set_cwd(dep_dir)
-                    var build_cmd = process_build_command(
+                    run_build_command(process_build_command(
                         command, output_path, c_core_deps_path
-                    )
-                    case env::run(build_cmd) != 0 -> {
-                        "(In dependency '_')
-Build command failed!"
-                            |> str::fmt([dep_name])
-                            |> io::println()
-                        prc::exit(1)
-                    }
+                    ), dep_name)
                     io::set_cwd(og_cwd)
                 }
             })
@@ -383,12 +371,12 @@ Build command failed!"
                         l |> arr::iter()
                             |> iter::map(|f| io::canonicalize(f)
                                 |> res::unwrap_or_else(|e| {
-                                    "(In dependency '_')
-Unable to find linked file '_'!"
-                                        |> str::fmt([dep_name, f])
-                                        |> io::println()
-                                    prc::exit(1)
-                                    return panic("")
+                                    return log::error(
+                                        "processing dependency "
+                                            |> concat(dep_name),
+                                        "Unable to locate linked file '_'!"
+                                            |> str::fmt([f])
+                                    )
                                 })
                             )
                             |> iter::for_each(|f| {
@@ -408,12 +396,12 @@ Unable to find linked file '_'!"
                         l |> arr::iter()
                             |> iter::map(|f| io::canonicalize(f)
                                 |> res::unwrap_or_else(|e| {
-                                    "(In dependency '_')
-Unable to find linked file '_'!"
-                                        |> str::fmt([dep_name, f])
-                                        |> io::println()
-                                    prc::exit(1)
-                                    return panic("")
+                                    return log::error(
+                                        "processing dependency "
+                                            |> concat(dep_name),
+                                        "Unable to locate linked file '_'!"
+                                            |> str::fmt([f])
+                                    )
                                 })
                             )
                             |> iter::for_each(|f| {
@@ -432,12 +420,12 @@ Unable to find linked file '_'!"
                 l |> arr::iter() |> iter::for_each(|f| {
                     var fp = io::canonicalize(f)
                         |> res::unwrap_or_else(|e| {
-                            "(In dependency '_')
-Unable to find included file '_'!"
-                                |> str::fmt([dep_name, f])
-                                |> io::println()
-                            prc::exit(1)
-                            return panic("")
+                            return log::error(
+                                "processing dependency "
+                                    |> concat(dep_name),
+                                "Unable to locate included file '_'!"
+                                    |> str::fmt([f])
+                            )
                         })
                     copy_included_file(fp, output_path)
                 })
@@ -451,12 +439,12 @@ Unable to find included file '_'!"
                     l |> arr::iter() |> iter::for_each(|f| {
                         var fp = io::canonicalize(f)
                             |> res::unwrap_or_else(|e| {
-                                "(In dependency '_')
-Unable to find included file '_'!"
-                                    |> str::fmt([dep_name, f])
-                                    |> io::println()
-                                prc::exit(1)
-                                return panic("")
+                                return log::error(
+                                    "processing dependency "
+                                        |> concat(dep_name),
+                                    "Unable to locate included file '_'!"
+                                        |> str::fmt([f])
+                                )
                             })
                         copy_included_file(fp, output_path)
                     })
@@ -470,18 +458,19 @@ Unable to find included file '_'!"
                     l |> arr::iter() |> iter::for_each(|f| {
                         var fp = io::canonicalize(f)
                             |> res::unwrap_or_else(|e| {
-                                "(In dependency '_')
-Unable to find included file '_'!"
-                                    |> str::fmt([dep_name, f])
-                                    |> io::println()
-                                prc::exit(1)
-                                return panic("")
+                                return log::error(
+                                    "processing dependency "
+                                        |> concat(dep_name),
+                                    "Unable to locate included file '_'!"
+                                        |> str::fmt([f])
+                                )
                             })
                         copy_included_file(fp, output_path)
                     })
                     io::set_cwd(og_cwd)
                 }
             })
+            log::prepared(dep_name)
             resolve_dependencies(
                 dep, dep_ctarget, dep_dir, gera_files, linked_files,
                 root_ctarget, output_path, c_core_deps_path
@@ -493,16 +482,16 @@ proc clone_dependency(url) {
     var h = url |> hash()
     var dest_dir = ".gerap" |> concat(io::file_sep()) |> concat(h |> as_str())
     case io::is_dir(dest_dir) -> return dest_dir
-    case env::run(
-        "_ clone _ _"
-            |> str::fmt([
-                config::get_git_path(),
-                url,
-                dest_dir
-            ])
-    ) != 0 -> {
-        io::println("Unable to clone package repository!")
-        prc::exit(1)
+    var git_p = prc::Process(
+        config::get_git_path(),
+        [url, dest_dir]
+    )
+    log::cloning(url, || git_p .> is_done())
+    case opt::unwrap_or(git_p .> exit_code(), 1) != 0 -> {
+        log::error(
+            "cloning " |> concat(url), 
+            git_p .> eoutput()
+        )
     }
     return dest_dir
 }
@@ -510,12 +499,12 @@ proc clone_dependency(url) {
 proc collect_source_files(path, dep_name, extensions, dest) {
     path |> io::read_dir()
         |> res::unwrap_or_else(|e| {
-            dep_name |> opt::map(|d| "(In dependency '_')\n" |> str::fmt([d])) 
-                |> opt::unwrap_or("")
-                |> concat("Unable to find source directory ('src')!")
-                |> io::println()
-            prc::exit(1)
-            return panic("")
+            return log::error(
+                dep_name
+                    |> opt::map(|d| "processing dependency " |> concat(d))
+                    |> opt::unwrap_or("processing the project"),
+                "Unable to locate the source directory!"
+            )
         })
         |> arr::iter()
         |> iter::filter(|name| 
