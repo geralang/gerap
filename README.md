@@ -1,6 +1,9 @@
-# The Gera Package Manager
+<img src="logo.png" height="200" align="left"/>
 
-The package manager for [the Gera programming language](https://github.com/typesafeschwalbe/gerac).
+# `gerap`
+*The package manager for [the Gera programming language](https://github.com/typesafeschwalbe/gerac).*
+
+This is the main tool for working with Gera, allowing you to create, import, compile and run packages.
 
 ## Installation
 
@@ -74,7 +77,7 @@ authors = ["<name of user>"]
 version = "0.1"
 target = "c"
 dependencies = [
-    <https://github.com/typesafeschwalbe/gerastd>
+    <https://github.com/typesafeschwalbe/gerastd-c>
 ]
 main = "test::main"
 ```
