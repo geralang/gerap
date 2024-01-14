@@ -1,7 +1,7 @@
 <img src="logo.png" height="200" align="left"/>
 
 # `gerap`
-*The package manager for [the Gera programming language](https://github.com/typesafeschwalbe/gerac).*
+*The package manager for [the Gera programming language](https://github.com/geralang).*
 
 This is the main tool for working with Gera, allowing you to create, import, compile and run packages.
 
@@ -77,16 +77,16 @@ authors = ["<name of user>"]
 version = "0.1"
 target = "c"
 dependencies = [
-    <https://github.com/typesafeschwalbe/gerastd-c>
+    <https://github.com/geralang/std>
 ]
 main = "test::main"
 ```
 
 The file consists of a list of properties, each of which either being:
 - a string (e.g. `"this is a string"`)
-- a git repository (e.g. `<https://github.com/typesafeschwalbe/gerastd>`)
+- a git repository (e.g. `<https://github.com/geralang/std>`)
 - a list of strings (e.g. `["John Doe" "Bob Smith" "Chris Hunter"]`, note that they are not comma-separated)
-- a list of packages (e.g. `[<https://github.com/typesafeschwalbe/gerastd-c> "./cool-parser-lib" "./is_even"]`, note that they are not comma-separated)
+- a list of packages (e.g. `[<https://github.com/geralang/std> "./cool-parser-lib" "./is_even"]`, note that they are not comma-separated)
 
 ### List of Properties
 
@@ -141,5 +141,5 @@ The file consists of a list of properties, each of which either being:
   - A list of files to copy into the output directory (`.gerap`). Will only be included if the root target type (not the target of this package, but the target type that will be generated) is `"c"`.
   - Must be a list of strings.
 - `c_core_deps` *(optional)*
-  - The implementation of the core dependencies to use. If not specified, [the default implementation](https://github.com/typesafeschwalbe/geraccoredeps) will be cloned with `git`.
+  - The implementation of the core dependencies to use. If not specified, [the default implementation](https://github.com/geralang/ccoredeps) will be cloned with `git`.
   - Must be a string referring to a local directory or git repository with a `coredeps.c`-file at its root.

@@ -4,7 +4,7 @@ mod gerap::build
 use gerap::(config, parser, log)
 use std::*
 
-var DEFAULT_CCOREDEPS_REPO = "https://github.com/typesafeschwalbe/geraccoredeps"
+var DEFAULT_CCOREDEPS_REPO = "https://github.com/typesafeschwalbe/ccoredeps"
 
 proc process_build_command(cmd, output_path, c_core_deps_path) {
     return cmd
