@@ -4,6 +4,6 @@ authors = ["TypeSafeSchwalbe"]
 version = "0.4"
 target = "c"
 dependencies = [
-    <https://github.com/typesafeschwalbe/gerastd>
+    <https://github.com/geralang/std>
 ]
 main = "gerap::main"

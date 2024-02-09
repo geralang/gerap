@@ -2,6 +2,8 @@
 mod gerap::log
 
 use gerap::config
+use std::conc::Thread
+use std::prc::Process
 use std::*
 
 proc style(properties) {
@@ -43,25 +45,34 @@ proc Spinner() { return {
     
     move = |self| {
         self.rotation = (self.rotation + 1) % length(SPINNER_ORIENTATIONS)
-        conc::sleep(SPINNER_FRAME_TIME)
+        Thread::sleep(SPINNER_FRAME_TIME)
         return self
     }
 } }
+
+var last_line_length = { val = 0 }
 
 proc log_with_spinner(thing, until) {
     var s = Spinner()
     iter::repeat_over(|| !until())
         |> iter::take_while(|f| f)
         |> iter::for_each(|f| {
-            "  _ _\r"
+            var l = "  _ _"
                 |> str::fmt([s .> display(), thing])
-                |> io::print()
+            last_line_length.val = math::max(length(l), last_line_length.val)
+            io::print(l)
+            last_line_length.val..length(l) |> iter::for_each(|c| io::print(" "))
+            io::print("\r")
             s .> move()
         })
 }
 
 proc log(thing) {
-    "    " |> concat(thing) |> io::println()
+    var l = "    " |> concat(thing)
+    io::print(l)
+    last_line_length.val..length(l) |> iter::for_each(|c| io::print(" "))
+    io::println("")
+    last_line_length.val = 0
 }
 
 pub proc cloning(name, until) {
@@ -108,6 +119,6 @@ pub proc error(while, message) {
             message
         ])
         |> io::println()
-    prc::exit(1)
+    Process::exit(1)
     return panic("We just exited")
 }

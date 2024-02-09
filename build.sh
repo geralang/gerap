@@ -1,16 +1,16 @@
 #!/bin/bash -e
 
-git clone https://github.com/typesafeschwalbe/gerastd gerastd
-git clone https://github.com/typesafeschwalbe/geraccoredeps geraccoredeps
+git clone https://github.com/geralang/std gerastd
+git clone https://github.com/geralang/ccoredeps geraccoredeps
 
 gerac \
-    $(find gerastd/src -type f \( -iname \*.gera -o -iname \*.gem \)) \
+    $(find std/src -type f \( -iname \*.gera -o -iname \*.gem \)) \
     $(find src -type f \( -iname \*.gera -o -iname \*.gem \)) \
     -m gerap::main -t c -o gerap.c
 
 cc \
-    $(find gerastd/src-c -name "*.c") \
+    $(find std/src-c -name "*.c") \
     gerap.c \
-    geraccoredeps/coredeps.c \
-    -I ./geraccoredeps/ \
+    ccoredeps/coredeps.c \
+    -I ./ccoredeps/ \
     -lm -O3 -o gerap

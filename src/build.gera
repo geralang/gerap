@@ -2,9 +2,11 @@
 mod gerap::build
 
 use gerap::(config, parser, log)
+use std::prc::Process
+use std::coll::Vector
 use std::*
 
-var DEFAULT_CCOREDEPS_REPO = "https://github.com/typesafeschwalbe/ccoredeps"
+var DEFAULT_CCOREDEPS_REPO = "https://github.com/geralang/ccoredeps"
 
 proc process_build_command(cmd, output_path, c_core_deps_path) {
     return cmd
@@ -44,7 +46,7 @@ proc run_build_command(build_cmd, name) {
     var args = build_cmd
         |> str::split(" ")
         |> iter::filter(|p| length(p) > 0)
-    var build_p = prc::Process(
+    var build_p = Process::new(
         args |> iter::next() |> opt::unwrap_or(""),
         args |> arr::collect()
     )
@@ -90,7 +92,7 @@ pub proc build_project(root_project) {
             #url u -> {
                 ccdp = ".gerap/.ccoredeps"
                 case !io::file_exists(ccdp) -> {
-                    var clone_p = prc::Process(
+                    var clone_p = Process::new(
                         config::get_git_path(),
                         ["clone", u, ccdp]
                     )
@@ -119,7 +121,7 @@ pub proc build_project(root_project) {
             -> ccdf = ccdf |> concat(io::file_sep())
         ccdf = ccdf |> concat("coredeps.c")
         case io::file_exists(ccdf) && io::is_file(ccdf)
-            -> c_core_deps_file = ccdf |> concat(" ")
+            -> c_core_deps_file = ccdf
         else c_core_deps_file = ""
     } else {
         c_core_deps_path = ""
@@ -184,9 +186,6 @@ pub proc build_project(root_project) {
     root_project.include_js |> opt::map(|l| l |> arr::iter() |> iter::for_each(|f| {
             case root_ctarget == "js" -> copy_included_file(f, output_path)
         }))
-    var gera_files_str = source_files.files |> arr::iter()
-        |> iter::map(|f| "\"_\"" |> str::fmt([f]))
-        |> str::join(" ")
     var main_path = root_project.main |> opt::unwrap_or_else(|| {
             return log::error(
                 "processing the project",
@@ -195,24 +194,17 @@ pub proc build_project(root_project) {
         })
     var output_file = ".gerap" |> concat(io::file_sep()) |> concat(root_name)
         |> concat(".") |> concat(root_ctarget)
-    var gerac_colored
-    case config::get_colored_output() -> gerac_colored = ""
-    else gerac_colored = "-c"
-    var gerac_cmd = "_ _ -m _ -t _ -o _ _"
-        |> str::fmt([
-            config::get_gerac_path(),
-            gera_files_str,
-            main_path,
-            root_ctarget,
-            output_file,
-            gerac_colored
+    mut var gerac_args = source_files.files
+        |> arr::concat([
+            "-m", main_path,
+            "-t", root_ctarget,
+            "-o", output_file
         ])
-    var gerac_cmd_args = gerac_cmd
-        |> str::split(" ")
-        |> iter::filter(|p| length(p) > 0)
-    var gerac_p = prc::Process(
-        gerac_cmd_args |> iter::next() |> opt::unwrap_or(""),
-        gerac_cmd_args |> arr::collect()
+    case !config::get_colored_output()
+        -> gerac_args = gerac_args |> arr::concat(["-c"])
+    var gerac_p = Process::new(
+        config::get_gerac_path(),
+        gerac_args
     )
     log::compiling(root_name, || gerac_p .> is_done())
     case opt::unwrap_or(gerac_p .> exit_code(), 1) != 0 -> {
@@ -223,27 +215,27 @@ pub proc build_project(root_project) {
     }
     case root_ctarget {
         "c" -> {
-            var linked_files_str = linked_files.files |> arr::iter()
-                |> iter::map(|f| "\"_\"" |> str::fmt([f]))
-                |> str::join(" ")
             var exec_file = ".gerap" |> concat(io::file_sep())
                 |> concat(root_name)
-            var cc_cmd = "_ _ _ _-lm _-o _ -I _"
-                |> str::fmt([
-                    config::get_cc_path(),
-                    linked_files_str,
-                    output_file,
-                    c_core_deps_file, // adds space at the end if exists
-                    config::get_cc_args(), // adds space at the end if exists
-                    exec_file,
-                    c_core_deps_path
+            mut var cc_args = linked_files.files
+                |> arr::concat([output_file])
+            case length(c_core_deps_file) > 0
+                -> cc_args = cc_args |> arr::concat([c_core_deps_file])
+            case length(config::get_cc_args()) > 0
+                -> cc_args = cc_args |> arr::concat(config::get_cc_args()
+                    |> str::split(" ")
+                    |> iter::filter(|a| length(a) > 0)
+                    |> arr::collect()
+                )
+            cc_args = cc_args
+                |> arr::concat([
+                    "-o", exec_file,
+                    "-I", c_core_deps_path,
+                    "-lm"
                 ])
-            var cc_cmd_args = cc_cmd
-                |> str::split(" ")
-                |> iter::filter(|p| length(p) > 0)
-            var cc_p = prc::Process(
-                cc_cmd_args |> iter::next() |> opt::unwrap_or(""),
-                cc_cmd_args |> arr::collect()
+            var cc_p = Process::new(
+                config::get_cc_path(),
+                cc_args
             )
             log::compiling(root_name, || cc_p .> is_done())
             case opt::unwrap_or(cc_p .> exit_code(), 1) != 0 -> {
@@ -270,6 +262,7 @@ pub proc build_project(root_project) {
             linked.output |> concat(output) |> io::write_file(output_file)
         }
     }
+    log::compiled(root_name)
 }
 
 proc resolve_dependencies(
@@ -482,9 +475,9 @@ proc clone_dependency(url) {
     var h = url |> hash()
     var dest_dir = ".gerap" |> concat(io::file_sep()) |> concat(h |> as_str())
     case io::is_dir(dest_dir) -> return dest_dir
-    var git_p = prc::Process(
+    var git_p = Process::new(
         config::get_git_path(),
-        [url, dest_dir]
+        ["clone", url, dest_dir]
     )
     log::cloning(url, || git_p .> is_done())
     case opt::unwrap_or(git_p .> exit_code(), 1) != 0 -> {

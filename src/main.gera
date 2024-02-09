@@ -2,6 +2,7 @@
 mod gerap
 
 use gerap::(files, build, parser, config)
+use std::prc::Process
 use std::*
 
 var USAGE = "Usage:
@@ -20,45 +21,45 @@ proc main() {
     var args = env::args()
     case length(args) < 2 -> {
         io::println(USAGE)
-        prc::exit(1)
+        Process::exit(1)
     }
     case args[1] {
         "new" -> {
             case length(args) != 3 -> {
                 io::println(USAGE)
-                prc::exit(1)
+                Process::exit(1)
             }
             var project_name = args[2]
             case project_name |> files::make_project_dir() {
                 #err e -> {
                     "Unable to create project: _"
                         |> str::fmt([e]) |> io::println()
-                    prc::exit(1)
+                    Process::exit(1)
                 }
             } else {}
         }
         "init" -> {
             case length(args) != 2 -> {
                 io::println(USAGE)
-                prc::exit(1)
+                Process::exit(1)
             }
             case files::init_project_dir() {
                 #err e -> {
                     "Unable to initialize project: _"
                         |> str::fmt([e]) |> io::println()
-                    prc::exit(1)
+                    Process::exit(1)
                 }
             } else {}
         }
         "build" -> {
             case length(args) != 2 -> {
                 io::println(USAGE)
-                prc::exit(1)
+                Process::exit(1)
             }
             io::read_file("config.gpc")
                 |> res::unwrap_or_else(|e| {
                     io::println("Unable to find package file ('config.gpc')!")
-                    prc::exit(1)
+                    Process::exit(1)
                     return panic("")
                 })
                 |> parser::parse_file()
@@ -66,7 +67,7 @@ proc main() {
                     "Unable to read package file: _"
                         |> str::fmt([e])
                         |> io::println()
-                    prc::exit(1)
+                    Process::exit(1)
                     return panic("")
                 })
                 |> build::build_project()
@@ -75,7 +76,7 @@ proc main() {
             var root_project = io::read_file("config.gpc")
                 |> res::unwrap_or_else(|e| {
                     io::println("Unable to find package file ('config.gpc')!")
-                    prc::exit(1)
+                    Process::exit(1)
                     return panic("")
                 })
                 |> parser::parse_file()
@@ -83,7 +84,7 @@ proc main() {
                     "Unable to read package file: _"
                         |> str::fmt([e])
                         |> io::println()
-                    prc::exit(1)
+                    Process::exit(1)
                     return panic("")
                 })
             root_project |> build::build_project()
@@ -111,18 +112,18 @@ proc main() {
                 "A package of type '_' cannot be directly executed!"
                     |> str::fmt([root_ctarget])
                     |> io::println()
-                prc::exit(1)
+                Process::exit(1)
             }
         }
         "clean" -> {
             case length(args) != 2 -> {
                 io::println(USAGE)
-                prc::exit(1)
+                Process::exit(1)
             }
             files::nuke_dir(".gerap")
         }
     } else {
         io::println(USAGE)
-        prc::exit(1)
+        Process::exit(1)
     }
 }

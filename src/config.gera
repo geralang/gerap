@@ -26,7 +26,6 @@ pub proc get_cc_path() {
 
 pub proc get_cc_args() {
     return env::get_var("GERAP_CC_ARGS")
-        |> opt::map(|args| args |> concat(" "))
         |> opt::unwrap_or("")
 }
 
