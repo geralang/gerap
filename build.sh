@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
-git clone https://github.com/geralang/std gerastd
-git clone https://github.com/geralang/ccoredeps geraccoredeps
+git clone https://github.com/geralang/std std
+git clone https://github.com/geralang/ccoredeps ccoredeps
 
 gerac \
     $(find std/src -type f \( -iname \*.gera -o -iname \*.gem \)) \
