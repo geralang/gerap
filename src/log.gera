@@ -110,13 +110,14 @@ pub proc compiled(name) {
 }
 
 pub proc error(while, message) {
-    "    _Error _while __\n_"
+    "    _Error _while __\n__"
         |> str::fmt([
             style([BOLD, BRIGHT_RED]),
             style([RESET]),
             while,
             style([BRIGHT_RED]),
-            message
+            message,
+            style([RESET])
         ])
         |> io::println()
     Process::exit(1)

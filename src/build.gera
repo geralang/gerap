@@ -202,6 +202,10 @@ pub proc build_project(root_project) {
         ])
     case !config::get_colored_output()
         -> gerac_args = gerac_args |> arr::concat(["-c"])
+    case config::get_max_call_depth() {
+        #some v -> gerac_args = gerac_args |> arr::concat(["-s", v])
+        #none -> {}
+    }
     var gerac_p = Process::new(
         config::get_gerac_path(),
         gerac_args

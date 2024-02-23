@@ -67,6 +67,12 @@ Deletes the `.gerap`-directory (output directory). This will result in all  non-
 
 To disable colored output, set the `GERAP_COLORED_OUTPUT` environment variable to something other than `true`.
 
+### Maximum Call Depth
+
+To overwrite the maximum call depth
+(the number of nested calls that can be made before a panic occurs; this mechanism is used to avoid the stack overflowing),
+set the `GERAP_MAX_CALL_DEPTH` environment variable to the number of allowed nested calls.
+
 ## Package Configuration (`config.gpc`)
 
 A package is defined by its `config.gpc`. When a new package is created with `gerap new <name>` or `gerap init`, the default configuration file looks like this:

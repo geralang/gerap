@@ -33,3 +33,7 @@ pub proc get_node_path() {
     return env::get_var("GERAP_NODE_PATH")
         |> opt::unwrap_or("node")
 }
+
+pub proc get_max_call_depth() {
+    return env::get_var("GERAP_MAX_CALL_DEPTH")
+}
