@@ -59,7 +59,7 @@ proc run_build_command(build_cmd, name) {
     }
 }
 
-pub proc build_project(root_project) {
+pub proc build_project(root_project, gera_source_files) {
     var root_name = root_project.name |> opt::unwrap_or_else(|| {
             return log::error(
                 "processing the project",
@@ -127,7 +127,7 @@ pub proc build_project(root_project) {
         c_core_deps_path = ""
         c_core_deps_file = ""
     }
-    var source_files = { files = [] }
+    var source_files = { files = gera_source_files }
     var linked_files = { files = [] }
     collect_source_files(
         "src", #none unit, static [".gera", ".gem"], source_files

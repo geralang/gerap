@@ -109,6 +109,40 @@ pub proc compiled(name) {
         |> log()
 }
 
+pub proc testing(name, until) {
+    "_Testing_ _"
+        |> str::fmt([style([BOLD, BRIGHT_YELLOW]), style([RESET]), name])
+        |> log_with_spinner(until)
+}
+
+pub proc failed(name) {
+    "_Failed_ __"
+        |> str::fmt([
+            style([BOLD, BRIGHT_RED]), 
+            style([RESET, BRIGHT_RED]),
+            name,
+            style([RESET])
+        ])
+        |> log()
+}
+
+pub proc passed(name) {
+    "_Passed_ _"
+        |> str::fmt([style([BOLD, BRIGHT_GREEN]), style([RESET]), name])
+        |> log()
+}
+
+pub proc result(passed, total) {
+    "_Result_ _ / _ passed"
+        |> str::fmt([
+            style([BOLD, BRIGHT_BLUE]),
+            style([RESET]),
+            passed |> as_str(),
+            total |> as_str()
+        ])
+        |> log()
+}
+
 pub proc error(while, message) {
     "    _Error _while __\n__"
         |> str::fmt([

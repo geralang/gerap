@@ -56,7 +56,17 @@ Builds the package in the current directory and runs the resulting binary. Requi
 - This package defines a main procedure in its configuration file
 - `target = "c"` or `target = "js"`
 - *(when `target = "c"`)* the C compiler used generates an executable that can be run on the current platform
-- *(when `target = "js"`)* the resulting file can be interpreted by a Javascript engine (e.g. Node.js)
+- *(when `target = "js"`)* the resulting file can be interpreted by the configured Javascript engine
+
+```
+gerap test
+```
+Builds the package in the current directory using the C target and runs all tests specified using the `test`-property.
+This overwrites the current build of this package located in `./.gerap`! Requires that:
+- The C compiler used generates an executable that can be run on the current platform
+- `geralang/std` being a dependency of this package
+- *(when `target = "js"`)* This package does not depend on procedures or variables that only exists when `target = "js"`
+- *(when `target = "js"`)* The tests defined by this package do not call out to any external code only available when `target = "js"`
 
 ```
 gerap clean
@@ -109,7 +119,7 @@ The file consists of a list of properties, each of which either being:
 - `main` *(optional)*
     - The full path of the main procedure.
     - Must be a string.
-    - *Note that not specifying a main procedure does not allow you to build or run this package, only to use it as a dependency.*
+    - *Note that not specifying a main procedure does not allow you to build or run this package, only to use it as a dependency or test it.*
 - `description` *(optional)*
     - A description of the package.
     - Must be a string.
@@ -149,3 +159,6 @@ The file consists of a list of properties, each of which either being:
 - `c_core_deps` *(optional)*
   - The implementation of the core dependencies to use. If not specified, [the default implementation](https://github.com/geralang/ccoredeps) will be cloned with `git`.
   - Must be a string referring to a local directory or git repository with a `coredeps.c`-file at its root.
+- `tests` *(optional)*
+  - A list of full procedure names to test when running `gerap test`.
+  - Must be a list of strings.
