@@ -134,7 +134,7 @@ pub proc build_project(root_project, gera_source_files) {
     )
     resolve_dependencies(
         root_project, root_ctarget, ".", source_files, linked_files,
-        root_ctarget, output_path, c_core_deps_path
+        root_ctarget, output_path, c_core_deps_path, Vector::new()
     )
     root_project.build |> opt::map(|command| {
             run_build_command(process_build_command(
@@ -271,7 +271,7 @@ pub proc build_project(root_project, gera_source_files) {
 
 proc resolve_dependencies(
     project, project_ctarget, project_path, gera_files, linked_files,
-    root_ctarget, output_path, c_core_deps_path
+    root_ctarget, output_path, c_core_deps_path, scanned_deps
 ) {
     project.dependencies
         |> opt::map(|deps| deps |> arr::iter() |> iter::for_each(|d| {
@@ -314,6 +314,9 @@ proc resolve_dependencies(
                         e
                     )
                 })
+            var dep_cname = dep.name |> opt::unwrap_or(dep_name)
+            case scanned_deps .> iter() |> iter::has(dep_cname) -> return unit
+            scanned_deps .> push(dep_cname)
             var dep_ctarget = dep.ctarget |> opt::unwrap_or_else(|| {
                 return log::error(
                     "processing dependency " |> concat(dep_name),
@@ -470,7 +473,7 @@ but its dependent has the target type '_'!"
             log::prepared(dep_name)
             resolve_dependencies(
                 dep, dep_ctarget, dep_dir, gera_files, linked_files,
-                root_ctarget, output_path, c_core_deps_path
+                root_ctarget, output_path, c_core_deps_path, scanned_deps
             )
         }))
 }
