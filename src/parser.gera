@@ -63,6 +63,9 @@ proc parse_token(file, idx) {
         }
         " " -> return #none unit
         "\n" -> return #none unit
+        "\r" -> return #none unit
+        "\x09" -> return #none unit
+        "\x00" -> return #none unit
     }
     return #err "unexpected '_'" |> str::fmt([c])
 }
@@ -109,9 +112,7 @@ proc unexpected_end(expected) {
 
 proc parse_string(tokens) {
     case tokens |> iter::next() {
-        #none -> return #err unexpected_end(
-            "a string"
-        )
+        #none -> return #err unexpected_end("a string")
         #some p -> case p {
             #ok t -> {
                 case t.type == "string" -> return #ok t.content
@@ -124,9 +125,7 @@ proc parse_string(tokens) {
 
 proc parse_list(tokens, item_parser) {
     case tokens |> iter::next() {
-        #none -> return #err unexpected_end(
-            "an opening square bracket ('[')"
-        )
+        #none -> return #err unexpected_end("an opening square bracket ('[')")
         #some p -> case p {
             #ok t -> case t.type != "square_open" -> return #err unmet_expect(
                 "an opening square bracket ('[')", t.content
