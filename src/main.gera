@@ -1,6 +1,44 @@
 
 mod gerap
 
-proc main() {
-    std::io::println("Hello, world!")
-}
+use std::env
+use std::opt::(map, expect)
+
+val USED_BY_BUILD_SCRIPT
+    = "'root_path' must only be called from a build script!"
+
+/// Returns whether gerap currently displays ANSII colors.
+/// Needs to be used by a build script compiled and executed by gerap.
+pub proc use_color() = env::get_var("GERAP_CURRENT_COLORED")
+    |> map(-> it == "true")
+    |> expect(USED_BY_BUILD_SCRIPT)
+
+/// Returns the path of the root package currently being built.
+/// Needs to be used by a build script compiled and executed by gerap.
+pub proc root_path() = env::get_var("GERAP_CURRENT_ROOT_PKG_PATH")
+    |> expect(USED_BY_BUILD_SCRIPT)
+
+/// Returns the name of the compilation target used.
+/// Needs to be used by a build script compiled and executed by gerap.
+pub proc root_target() = env::get_var("GERAP_CURRENT_ROOT_PKG_TARGET")
+    |> expect(USED_BY_BUILD_SCRIPT)
+
+/// Returns the name of the current C compiler used.
+/// Needs to be used by a build script compiled and executed by gerap.
+pub proc cc_path() = env::get_var("GERAP_CURRENT_CC_PATH")
+    |> expect(USED_BY_BUILD_SCRIPT)
+
+/// Returns the name of the current C compiler arguments used.
+/// Needs to be used by a build script compiled and executed by gerap.
+pub proc cc_args() = env::get_var("GERAP_CURRENT_CC_ARGS")
+    |> expect(USED_BY_BUILD_SCRIPT)
+
+/// Returns the path of the current C core dependency implementation being used.
+/// Needs to be used by a build script compiled and executed by gerap.
+pub proc ccoredeps_path() = env::get_var("GERAP_CURRENT_CCOREDEPS_PATH")
+    |> expect(USED_BY_BUILD_SCRIPT)
+
+/// Returns the path of the current output directory.
+/// Needs to be used by a build script compiled and executed by gerap.
+pub proc output_path() = env::get_var("GERAP_CURRENT_OUTPUT_PATH")
+    |> expect(USED_BY_BUILD_SCRIPT)

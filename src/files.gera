@@ -1,0 +1,24 @@
+
+mod gerap::files
+
+use std::res::unwrap_or_else
+use std::arr::iter
+use std::iter::for_each
+use std::io::*
+
+proc nuke_dir(path) {
+    read_dir(path)
+        |> unwrap_or_else(|e| [])
+        |> iter()
+        |> for_each(|n| {
+            val p = path |> concat(file_sep()) |> concat(n)
+            case is_dir(p) -> nuke_dir(p)
+            else delete_file(p)
+        })
+    delete_dir(path)
+}
+
+pub proc create_gerap_dir() = create_dir(".gerap")
+
+pub proc create_build_dir() = create_dir(".gerap/build")
+pub proc delete_build_dir() = nuke_dir(".gerap/build")

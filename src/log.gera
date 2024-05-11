@@ -1,0 +1,136 @@
+
+mod gerap::log
+
+use gerap::config::CONFIG
+
+use std::env
+use std::arr
+use std::math::max
+use std::conc::Thread
+use std::prc::Process
+use std::io::(print, println)
+use std::str::*
+use std::iter::*
+
+
+proc style(properties) {
+    case env::is_windows() -> return ""
+    case !CONFIG.use_color -> return ""
+    return "\x1b[0"
+        |> concat(properties
+            |> arr::iter() 
+            |> map(-> ";" |> concat(it)) 
+            |> join(""))
+        |> concat("m")
+}
+
+val RESET = "0"
+val BOLD = "1"
+val BLACK = "30"
+val RED = "31"
+val GREEN = "32"
+val YELLOW = "33"
+val BLUE = "34"
+val MAGENTA = "35"
+val CYAN = "36"
+val WHITE = "37"
+val BRIGHT_BLACK = "90"
+val BRIGHT_RED = "91"
+val BRIGHT_GREEN = "92"
+val BRIGHT_YELLOW = "93"
+val BRIGHT_BLUE = "94"
+val BRIGHT_MAGENTA = "95"
+val BRIGHT_CYAN = "96"
+val BRIGHT_WHITE = "97"
+
+
+val OVERWRITTEN_LINE = { length = 0 }
+
+val SPINNER_POSITIONS = "|/-\\"
+val SPINNER_FRAME_TIME = 250
+
+proc log_spinner(message, until) {
+    mut pos = 0
+    val update = -> {
+        val s = SPINNER_POSITIONS |> at(pos)
+        val l = "  _ _" |> fmt([s, message])
+        OVERWRITTEN_LINE.length = max(OVERWRITTEN_LINE.length, length(l))
+        print(l)
+        print(" " |> repeat(OVERWRITTEN_LINE.length - length(l)))
+        print("\r")
+        pos = (pos + 1) % length(SPINNER_POSITIONS)
+        Thread::sleep(SPINNER_FRAME_TIME)
+    }
+    repeat_over(|| unit)
+        |> take_while(-> !until())
+        |> for_each(update)
+}
+
+proc log(message) {
+    val l = "    " |> concat(message)
+    print(l)
+    print(" " |> repeat(OVERWRITTEN_LINE.length - length(l)))
+    print("\n")
+    OVERWRITTEN_LINE.length = 0
+}
+
+
+proc log_status(color, status, thing, until) = "___ _"
+    |> fmt([
+        style([ BOLD, color ]),
+        status,
+        style([]),
+        thing
+    ])
+    |> log_spinner(until)
+
+pub proc cloning(thing, until)
+    = log_status(CYAN, "cloning", thing, until)
+
+pub proc building(thing, until)
+    = log_status(BRIGHT_YELLOW, "building", thing, until)
+
+pub proc compiling(thing, until)
+    = log_status(BRIGHT_BLUE, "compiling", thing, until)
+
+pub proc testing(thing, until)
+    = log_status(BRIGHT_YELLOW, "testing", thing, until)
+
+
+proc log_result(color, result, thing) = "___ _"
+    |> fmt([
+        style([ BOLD, color ]),
+        result,
+        style([]),
+        thing
+    ])
+    |> log()
+
+pub proc compiled(thing)
+    = log_result(BRIGHT_GREEN, "compiled", thing)
+
+pub proc test_failed(thing)
+    = log_result(BRIGHT_RED, "failed", thing)
+
+pub proc test_passed(thing)
+    = log_result(BRIGHT_GREEN, "passed", thing)
+
+pub proc test_result(failed_count, passed_count)
+    = log_result(
+        BRIGHT_BLUE, "result",
+        fmt("_ failed, _ passed", [as_str(failed_count), as_str(passed_count)])
+    )
+
+
+pub proc error(message) {
+    log_result(BRIGHT_RED, "error", message)
+    Process::exit(1)
+    return panic("")
+}
+
+pub proc error_while(while, message) {
+    log_result(BRIGHT_RED, "error", "while " |> concat(while))
+    println(message)
+    Process::exit(1)
+    return panic("")
+}

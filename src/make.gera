@@ -1,0 +1,11 @@
+
+mod gerap::make
+
+use gerap::files
+
+pub proc build(p) {
+    files::create_gerap_dir()
+    files::delete_build_dir()
+    files::create_build_dir()
+    
+}
