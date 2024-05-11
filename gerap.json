@@ -8,8 +8,5 @@
         "https://github.com/typesafeschwalbe/gera-json"
     ],
     "main": "gerap::cli::main",
-    "tests": [
-        "example::tests::a",
-        "example::tests::b"
-    ]
+    "tests": []
 }
