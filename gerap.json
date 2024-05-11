@@ -7,6 +7,5 @@
         "https://github.com/geralang/std",
         "https://github.com/typesafeschwalbe/gera-json"
     ],
-    "main": "gerap::cli::main",
-    "tests": []
+    "main": "gerap::cli::main"
 }

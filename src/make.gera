@@ -27,14 +27,14 @@ proc check_exit_code(process, while) {
 }
 
 
-pub proc build(pkg, release) {
+pub proc build(pkg, gera_sources, release) {
     create_dir(".gerap")
     prepare_ccoredeps()
     val gerap_dir = canonicalize(".gerap") |> expect("we just created it")
     val dependencies = HashMap::new()
     pkg |> collect_deps(gerap_dir, pkg.targ, dependencies)
     val sources = { 
-        gera = Vector::new(), c = Vector::new(), js = Vector::new()
+        gera = gera_sources, c = Vector::new(), js = Vector::new()
     }
     collect_sources(".", sources)
     dependencies .> iter()

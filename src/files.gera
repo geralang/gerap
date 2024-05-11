@@ -63,8 +63,7 @@ val PACKAGE_CONFIG_TEMPLATE = "{
     ],
     \"main\": \"_::main\"
 }"
-val PACKAGE_MAIN_TEMPLATE = "\
-
+val PACKAGE_MAIN_TEMPLATE = "
 mod _
 
 proc main() {
