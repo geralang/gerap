@@ -15,6 +15,9 @@ proc use_color() {
     return true
 }
 
+proc java_path() = env::get_var("GERAP_JAVA_PATH")
+    |> unwrap_or("java")
+
 proc gerac_path() {
     case env::get_var("GERAP_GERAC_PATH") {
         #some path -> return path
@@ -33,23 +36,30 @@ proc cc_path() = env::get_var("GERAP_CC_PATH")
 proc cc_args() = env::get_var("GERAP_CC_ARGS")
     |> unwrap_or("")
 
+proc ccoredeps_path() = env::get_var("GERAP_CCOREDEPS_PATH")
+    |> unwrap_or("https://github.com/geralang/ccoredeps")
+
 proc js_path() = env::get_var("GERAP_JS_PATH")
     |> unwrap_or("node")
 
 pub val CONFIG = {
     use_color = true,
+    java_path = "",
     gerac_path = "",
     git_path = "",
     cc_path = "",
     cc_args = "",
+    ccoredeps_path = "",
     js_path = ""
 }
 
 pub proc load() {
     CONFIG.use_color = use_color()
+    CONFIG.java_path = java_path()
     CONFIG.git_path = git_path()
     CONFIG.cc_path = cc_path()
     CONFIG.cc_args = cc_args()
+    CONFIG.ccoredeps_path = ccoredeps_path()
     CONFIG.js_path = js_path()
     val args = env::args() |> iter()
     args |> for_each(|arg| {
@@ -63,6 +73,17 @@ pub proc load() {
                 case value_missing
                     -> log::error("Missing value for argument '--cc-path'")
                 CONFIG.cc_path = value |> expect("checked above")
+            }
+            "--ccoredeps-path" -> {
+                val value = args |> next()
+                val value_missing = value
+                    |> map(-> it |> starts_with("--"))
+                    |> unwrap_or(true)
+                case value_missing
+                    -> log::error(
+                        "Missing value for argument '--ccoredeps-path'"
+                    )
+                CONFIG.ccoredeps_path = value |> expect("checked above")
             }
             "--cc-args" -> {
                 CONFIG.cc_args = args |> join(" ")

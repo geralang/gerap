@@ -3,12 +3,16 @@ mod gerap::cli
 
 use gerap::log
 use gerap::pkg
+use gerap::make
+use gerap::files
+use gerap::config::CONFIG
 
-use std::env::args
+use std::opt::expect
+use std::env::(args, run)
 use std::arr::(iter, collect)
-use std::iter::(skip, take_while)
-use std::str::starts_with
-use std::io::println
+use std::str::(starts_with, split)
+use std::iter::*
+use std::io::*
 
 val USAGE = "Usage:
     gerap new <name> 
@@ -30,41 +34,61 @@ val USAGE = "Usage:
 
 proc main() {
     gerap::config::load()
-    case length(args()) <= 1 -> {
+    val args = args()
+    case length(args) <= 1 -> {
         println(USAGE)
         return unit
     }
-    case args()[1] {
+    case args[1] {
         "new" -> {
-            case length(args()) <= 2
+            case length(args) <= 2
                 -> log::error("Missing name of new package!")
+            val name = args[2]
+            create_dir(name)
+            files::init_package(name, name)
         }
         "init" -> {
-
+            val name = get_cwd() 
+                |> split(file_sep()) 
+                |> last() |> expect("'split' returns at least 1 element")
+            files::init_package(".", name)
         }
         "build" -> {
             val p = pkg::read_config("gerap.json")
-            
+            val release = length(args) >= 3 && args[2] == "release"
+            make::build(p, release)
         }
         "run" -> {
-
+            val p = pkg::read_config("gerap.json")
+            make::build(p, false)
+            case p.targ {
+                "c" -> ".gerap/"
+                    |> concat(p.name)
+                    |> run()
+                "js" -> CONFIG.js_path
+                    |> concat(" .gerap/")
+                    |> concat(p.name)
+                    |> run()
+            }
         }
         "test" -> {
-
+            panic("not yet implemented!")
         }
         "info" -> {
-            case length(args()) <= 2
+            case length(args) <= 2
                 -> log::error("Missing the path of the thing to document!")
+            panic("not yet implemented!")
         }
         "doc" -> {
-            // val modules = args()
-            //     |> iter()
-            //     |> skip(2)
-            //     |> take_while(-> !starts_with(it, "--"))
-            //     |> collect()
+            val modules = args
+                |> iter()
+                |> skip(2)
+                |> take_while(-> !starts_with(it, "--"))
+                |> collect()
+            panic("not yet implemented!")
         }
         "clean" -> {
-            
+            files::nuke_dir(".gerap")
         }
     } else println(USAGE)
 }

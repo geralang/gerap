@@ -42,11 +42,8 @@ pub proc read_config(path) {
     val main = r .> at("main") |> map(
         -> it |> json::get_string() |> expect_type("main", "a string", path)
     )
-    val link = r .> at("link") |> map(
-        -> it |> json::get_object() |> expect_type("link", "an object", path)
-    )
     val tests = r .> at("tests") |> map(
         -> it |> json::get_array() |> expect_type("tests", "an array", path)
     ) |> unwrap_or(Vector::new())
-    return { name, targ, deps, main, link, tests }
+    return { name, targ, deps, main, tests }
 }
