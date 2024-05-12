@@ -1,0 +1,187 @@
+
+mod gerap::make
+
+use gerap::files
+use gerap::log
+use gerap::pkg
+use gerap::config::CONFIG
+
+use std::coll::(HashMap, Vector)
+use std::prc::Process
+use std::arr::iter
+use std::res::(expect, unwrap_or_else)
+use std::env::run
+use std::opt::*
+use std::str::*
+use std::iter::*
+use std::io::*
+
+
+proc check_exit_code(process, while) {
+    case unwrap_or(process .> exit_code(), 1) != 0 -> {
+        log::error_while(
+            while, 
+            process .> output() |> concat(process .> eoutput())
+        )
+    }
+}
+
+
+pub proc build(pkg, gera_sources, release) {
+    create_dir(".gerap")
+    prepare_ccoredeps()
+    val gerap_dir = canonicalize(".gerap") |> expect("we just created it")
+    val dependencies = HashMap::new()
+    pkg |> collect_deps(gerap_dir, pkg.targ, dependencies)
+    val sources = { 
+        gera = gera_sources, c = Vector::new(), js = Vector::new()
+    }
+    collect_sources(".", sources)
+    dependencies .> iter()
+        |> for_each(-> collect_sources(it.value.path, sources))
+    compile_gera_sources(pkg, sources)
+    case pkg.targ {
+        "c" -> compile_c_sources(pkg, sources, release)
+        "js" -> join_js_sources(pkg, sources)
+    }
+}
+
+proc prepare_ccoredeps() {
+    case is_git_url(CONFIG.ccoredeps_path) && !file_exists(".gerap/ccoredeps")
+        -> clone_repo(CONFIG.ccoredeps_path, ".gerap/ccoredeps")
+    case is_git_url(CONFIG.ccoredeps_path)
+        -> CONFIG.ccoredeps_path = ".gerap/ccoredeps"
+    CONFIG.ccoredeps_path = CONFIG.ccoredeps_path
+        |> canonicalize()
+        |> unwrap_or_else(|e| log::error(
+            "Unable to locate C coredeps implementation at '_'!"
+                |> fmt([CONFIG.ccoredeps_path])
+        ))
+}
+
+val VALID_GIT_URL_PREFIXES = ["git://", "http://", "https://", "ssh://"]
+proc is_git_url(s) = VALID_GIT_URL_PREFIXES
+    |> iter()
+    |> find(-> s |> starts_with(it))
+    |> is_some()
+
+proc collect_deps(pkg, gerap_dir, root_targ, collected) = pkg.deps
+    .> iter()
+    |> map(-> it
+        |> json::get_string() 
+        |> unwrap_or_else(|| log::error(
+            "'_' is not a valid dependency!" |> fmt([it |> json::as_str()])
+        ))
+    )
+    |> for_each(-> {
+        val dep_path
+        case it |> is_git_url() -> {
+            dep_path = gerap_dir |> files::pconcat(as_str(hash(it)))
+            case !file_exists(dep_path) -> clone_repo(it, dep_path)
+        } else dep_path = it
+            |> canonicalize()
+            |> unwrap_or_else(|e| log::error(
+                "Unable to locate dependency '_'!" |> fmt([it])
+            ))
+        val og_cwd = get_cwd()
+        set_cwd(dep_path)
+        val pkg_cfg_path = dep_path |> files::pconcat("gerap.json")
+        val pkg_cfg = pkg::read_config(pkg_cfg_path)
+        case pkg_cfg.targ != "any" && pkg_cfg.targ != root_targ
+            -> log::error(
+                "Dependency '_' has target '_', but current target is '_'!"
+                    |> fmt([pkg_cfg.name, pkg_cfg.targ, root_targ])
+            )
+        case !(collected .> has(pkg_cfg.name)) -> {
+            collected .> set(pkg_cfg.name, {
+                cfg = pkg_cfg, 
+                path = dep_path
+            })
+            pkg_cfg |> collect_deps(gerap_dir, root_targ, collected)
+        }
+        set_cwd(og_cwd)
+    })
+
+proc clone_repo(url, dest) {
+    val clone = Process::new(CONFIG.git_path, ["clone", url, dest])
+    log::cloning(url, || clone .> is_done())
+    clone |> check_exit_code("cloning " |> concat(url))
+}
+
+proc collect_sources(pkg_path, sources) {
+    pkg_path |> files::pconcat("src")
+        |> files::read_dir_rec(Vector::new()) .> iter()
+        |> filter(-> ends_with(it, ".gera") || ends_with(it, ".gem"))
+        |> for_each(-> sources.gera .> push(it))
+    pkg_path |> files::pconcat("src-c")
+        |> files::read_dir_rec(Vector::new()) .> iter()
+        |> filter(-> ends_with(it, ".c"))
+        |> for_each(-> sources.c .> push(it))
+    pkg_path |> files::pconcat("src-js")
+        |> files::read_dir_rec(Vector::new()) .> iter()
+        |> filter(-> ends_with(it, ".js"))
+        |> for_each(-> sources.js .> push(it))
+}
+
+proc compile_gera_sources(root_pkg, sources) {
+    val output
+    case root_pkg.targ {
+        "c" -> output = ".gerap/output.c"
+        "js" -> output = ".gerap/output.js"
+    } else return log::error(
+        "'_' is not a valid compilation target!" |> fmt([root_pkg.targ])
+    )
+    val main = root_pkg.main
+        |> unwrap_or_else(|| log::error(
+            "The package '_' does not specify a main procedure!"
+                |> fmt([root_pkg.name])
+        ))
+    val args = Vector::new()
+    args .> push("-jar") .> push(CONFIG.gerac_path)
+    args .> push("-m") .> push(main)
+    args .> push("-t") .> push(root_pkg.targ)
+    args .> push("-s") .> push(".gerap/symbols.json")
+    args .> push("-o") .> push(output)
+    case !CONFIG.use_color -> args .> push("-c")
+    args .> append_vec(sources.gera)
+    val compilation = Process::new(CONFIG.java_path, args .> as_array())
+    log::compiling(root_pkg.name, || compilation .> is_done())
+    compilation |> check_exit_code("compiling " |> concat(root_pkg.name))
+    case root_pkg.targ {
+        "c" -> sources.c .> push(output)
+        "js" -> sources.js .> push(output)
+    }
+}
+
+proc compile_c_sources(root_pkg, sources, release) {
+    val output = ""
+    val args = Vector::new()
+    args .> append_vec(sources.c)
+    args .> push("-o") .> push(".gerap/" |> concat(root_pkg.name))
+    args .> push("-I") .> push(CONFIG.ccoredeps_path)
+    args .> push("-lm")
+    args .> push("-rdynamic")
+    case release -> args .> push("-O3")
+    args .> push(files::pconcat(CONFIG.ccoredeps_path, "coredeps.c"))
+    CONFIG.cc_args |> split(" ") 
+        |> filter(-> length(it) > 0)
+        |> for_each(-> args .> push(it))
+    val compilation = Process::new(CONFIG.cc_path, args .> as_array())
+    log::compiling(root_pkg.name, || compilation .> is_done())
+    compilation |> check_exit_code("compiling " |> concat(root_pkg.name))
+    log::compiled(root_pkg.name)
+}
+
+proc join_js_sources(root_pkg, sources) {
+    mut output = ""
+    sources.js .> iter() |> for_each(-> {
+        val content = it
+            |> read_file()
+            |> unwrap_or_else(|e| log::error_while(
+                "reading '_'" |> fmt([it]),
+                e
+            ))
+        output = output |> concat(content)
+    })
+    output |> write_file(".gerap/" |> concat(root_pkg.name))
+}

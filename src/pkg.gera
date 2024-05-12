@@ -1,0 +1,49 @@
+
+mod gerap::pkg
+
+use gerap::log
+
+use std::io::read_file
+use std::res::unwrap_or_else
+use std::opt::(map, unwrap_or, unwrap_or_else)
+use std::str::fmt
+use std::coll::Vector
+
+proc expect_property(o, property, path) = o
+    .> at(property)
+    |> unwrap_or_else(|| log::error(
+        "'_' is missing the property 'name'!" |> fmt([path])
+    ))
+
+proc expect_type(o, property, type, path) = o
+    |> unwrap_or_else(|| log::error(
+        "the property '_' in '_' is not _!" |> fmt([property, path, type])
+    ))
+
+pub proc read_config(path) {
+    val r = read_file(path)
+        |> unwrap_or_else(|e| log::error_while(
+            "reading '_'" |> fmt([path]), e 
+        ))
+        |> json::from_str()
+        |> unwrap_or_else(|e| log::error_while(
+            "parsing '_'" |> fmt([path]), e 
+        ))
+        |> json::get_object()
+        |> unwrap_or_else(|| log::error(
+            "'_' does not hold an object!" |> fmt([path])
+        ))
+    val name = r |> expect_property("name", path)
+        |> json::get_string() |> expect_type("name", "a string", path)
+    val targ = r |> expect_property("target", path)
+        |> json::get_string() |> expect_type("target", "a string", path)
+    val deps = r |> expect_property("dependencies", path)
+        |> json::get_array() |> expect_type("dependencies", "an array", path)
+    val main = r .> at("main") |> map(
+        -> it |> json::get_string() |> expect_type("main", "a string", path)
+    )
+    val tests = r .> at("tests") |> map(
+        -> it |> json::get_array() |> expect_type("tests", "an array", path)
+    ) |> unwrap_or(Vector::new())
+    return { name, targ, deps, main, tests }
+}

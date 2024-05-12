@@ -1,85 +1,84 @@
 
 mod gerap::files
 
-use std::*
+use std::res::unwrap_or_else
+use std::opt::(expect, unwrap_or_else)
+use std::arr::iter
+use std::iter::for_each
+use std::if_else
+use std::env
+use std::io::*
+use std::str::*
 
-pub proc get_user_name() {
-    case env::is_windows() -> return env::get_var("USERNAME")
-        |> opt::expect("Unable to get the name of the user!")
-    else return env::get_var("USER")
-        |> opt::map(|v| #some v)
-        |> opt::unwrap_or_else(|| env::get_var("LOGNAME"))
-        |> opt::expect("Unable to get the name of the user!")
+pub proc pconcat(a, b) {
+    case starts_with(b, file_sep()) -> return b
+    mut r = a   
+    case !ends_with(r, file_sep())
+        -> r = r |> concat(file_sep())
+    r = r |> concat(b)
+    return r
 }
 
-proc default_main_file(name) {
-    return "
+pub proc nuke_dir(path) {
+    read_dir(path)
+        |> unwrap_or_else(|e| [])
+        |> iter()
+        |> for_each(|n| {
+            val p = path |> pconcat(n)
+            case is_dir(p) -> nuke_dir(p)
+            else delete_file(p)
+        })
+    delete_dir(path)
+}
+
+pub proc read_dir_rec(path, files) {
+    read_dir(path)
+        |> unwrap_or_else(|e| [])
+        |> iter()
+        |> for_each(|n| {
+            val p = path |> pconcat(n)
+            case is_dir(p) -> read_dir_rec(p, files)
+            else files .> push(p)
+        })
+    return files
+}
+
+proc get_username() {
+    case env::is_windows() 
+        -> return env::get_var("USERNAME")
+        |> expect("Unable to get the name of the user!")
+    return env::get_var("USER")
+        |> unwrap_or_else(|| env::get_var("LOGNAME")
+            |> expect("Unable to get the name of the user!")
+        )
+}
+
+val PACKAGE_CONFIG_TEMPLATE = "{
+    \"name\": \"_\",
+    \"description\": \"\",
+    \"authors\": [\"_\"],
+    \"target\": \"c\",
+    \"dependencies\": [
+        \"https://github.com/geralang/std\"
+    ],
+    \"main\": \"_::main\"
+}"
+val PACKAGE_MAIN_TEMPLATE = "
 mod _
 
 proc main() {
     std::io::println(\"Hello, world!\")
 }
-" |> str::fmt([name])
-}
-
-proc default_project_file(name) {
-    return "name = \"_\"
-description = \"\"
-authors = [\"_\"]
-version = \"0.1\"
-target = \"c\"
-dependencies = [
-    <https://github.com/geralang/std>
-]
-main = \"_::main\"
 "
-    |> str::fmt([
-        name,
-        get_user_name(),
-        name
-    ])
-}
-
-pub proc make_project_dir(name) {
-    return io::create_dir(name)
-        |> res::and_then(|o| io::create_dir(
-            name |> concat(io::file_sep()) |> concat("src")
-        ))
-        |> res::and_then(|o| io::write_file(
-            default_main_file(name),
-            name |> concat(io::file_sep()) |> concat("src") 
-                |> concat(io::file_sep()) |> concat("main.gera")
-        ))
-        |> res::and_then(|o| io::write_file(
-            default_project_file(name),
-            name |> concat(io::file_sep()) |> concat("config.gpc") 
-        ))
-}
-
-pub proc init_project_dir() {
-    var name = io::get_cwd()
-        |> str::split(io::file_sep())
-        |> iter::last()
-        |> opt::expect("Unable to get the project name!")
-    return io::create_dir("src")
-        |> res::and_then(|o| io::write_file(
-            default_main_file(name),
-            "src" |> concat(io::file_sep()) |> concat("main.gera")
-        ))
-        |> res::and_then(|o| io::write_file(
-            default_project_file(name),
-            "config.gpc"
-        ))
-}
-
-pub proc nuke_dir(path) {
-    io::read_dir(path)
-        |> res::unwrap_or_else(|e| [])
-        |> arr::iter()
-        |> iter::for_each(|n| {
-            var p = path |> concat(io::file_sep()) |> concat(n)
-            case io::is_dir(p) -> nuke_dir(p)
-            else io::delete_file(p)
-        })
-    io::delete_dir(path)
+pub proc init_package(dir, name) {
+    val pkg_cfg_path = dir |> pconcat("gerap.json")
+    PACKAGE_CONFIG_TEMPLATE
+        |> fmt([name, get_username(), name])
+        |> write_file(pkg_cfg_path)
+    val src_dir_path = dir |> pconcat("src")
+    create_dir(src_dir_path)
+    val main_file_path = src_dir_path |> pconcat("main.gera")
+    PACKAGE_MAIN_TEMPLATE
+        |> fmt([name])
+        |> write_file(main_file_path)
 }

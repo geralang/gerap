@@ -1,0 +1,563 @@
+
+mod gerap::docs
+
+use gerap::log
+use gerap::files
+
+use std::res::expect
+use std::opt::*
+use std::str::*
+use std::io::*
+use std::iter::*
+
+proc expectv(o) = o
+    |> unwrap_or_else(|| log::error("Symbol file should be valid!"))
+
+pub proc find_symbol(module, name) {
+    val search = |j, f| j
+        |> json::get_array() |> expectv()
+        .> iter()
+        |> map(-> it |> json::get_object() |> expectv())
+        |> reduce(|r, c| {
+            r ?none
+            val n = c .> at("path") |> expectv()
+                |> json::get_string() |> expectv()
+            case n == name -> return #some c
+            return f(c)
+        }, #none unit)
+    case module .> has("constants") -> {
+        module .> at("constants") |> expectv()
+            |> search(-> #none unit)
+            ?none
+    }
+    case module .> has("procedures") -> {
+        module .> at("procedures") |> expectv()
+            |> search(-> #none unit)
+            ?none
+    }
+    return module .> at("modules") |> expectv()
+        |> search(-> it |> find_symbol(name))
+}
+
+pub proc print_info(thing) {
+    println("")
+    case thing .> has("information") -> {
+        print(log::style([log::BOLD]))
+        println("summary")
+        print(log::style([]))
+        thing 
+            .> at("information") |> expectv()
+            |> json::get_string() |> expectv()
+            |> println()
+        println("")
+    }
+    val print_paths_property = |o, property| {
+        case thing .> has(property) -> {
+            val items = thing .> at(property) |> expectv()
+                |> json::get_array() |> expectv()
+            case items.size > 0 -> {
+                print(log::style([log::BOLD]))
+                println(property)
+                print(log::style([]))
+                items .> iter()
+                    |> map(-> it 
+                        |> json::get_object() |> expectv()
+                        .> at("path") |> expectv()
+                        |> json::get_string() |> expectv()
+                    )
+                    |> for_each(println)
+                println("")
+            }
+        }
+    }
+    thing |> print_paths_property("modules")
+    thing |> print_paths_property("constants")
+    thing |> print_paths_property("procedures")
+    case thing .> has("arguments") -> {
+        print(log::style([log::BOLD]))
+        println("arguments")
+        print(log::style([]))
+        thing .> at("arguments") |> expectv()
+            |> json::get_array() |> expectv()
+            .> iter()
+            |> map(-> it |> json::get_object() |> expectv())
+            |> for_each(-> {
+                it .> at("name") |> expectv()
+                    |> json::get_string() |> expectv()
+                    |> print()
+                print(" - ")
+                it .> at("type") |> expectv()
+                    |> json::get_string() |> expectv()
+                    |> println()
+            })
+        println("")
+    }
+    val print_string_property = |o, property| {
+        case thing .> has(property) -> {
+            print(log::style([log::BOLD]))
+            println(property)
+            print(log::style([]))
+            thing .> at(property) |> expectv()
+                |> json::get_string() |> expectv()
+                |> println()
+            println("")
+        }
+    }
+    thing |> print_string_property("returns")
+    thing |> print_string_property("type")
+}
+
+
+val HTML_DOC_CSS = "
+@import url(\"https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@600&display=swap\");
+@import url(\"https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,700;1,400;1,700&display=swap\");
+
+body {
+    font-family: \"Rubik\", sans-serif;
+    margin: 0px;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: row;
+    background: #1f1717;
+    color: #fcf5ed;
+}
+
+a {
+    color: #fcf5ed;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+hr {
+    border: none;
+    color: #fcf5ed44;
+    background-color: #fcf5ed44;
+    width: 100%;
+    height: 1px;
+}
+
+*::selection {
+    background: #fcf5ed;
+    color: #1f1717;
+}
+
+#sidebar {
+    position: relative;
+    width: 30rem;
+    height: 100%;
+    flex-grow: 0;
+    overflow-x: none;
+    overflow-y: scroll;
+}
+
+#sidebar-header {
+    width: 100%;
+    height: 5rem;
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-content: center;
+    flex-direction: column;
+    padding-left: 2rem;
+    box-sizing: border-box;
+}
+
+#sidebar-content {
+    width: 100%;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    box-sizing: border-box;
+    padding-bottom: 15rem;
+}
+
+.sidebar-heading {
+    margin-top: 2rem;
+    font-size: 1.3rem;
+    font-weight: bold;
+}
+
+#main {
+    position: relative;
+    height: 100%;
+    flex-grow: 1;
+    overflow-y: scroll;
+    outline: 1px solid #fcf5ed44;
+}
+
+#banner {
+    position: relative;
+    margin-top: 2.5rem;
+    width: 100%;
+    height: 10rem;
+    background: linear-gradient(to right, transparent, 30%, transparent, #1f1717),
+        linear-gradient(to left, transparent, 30%, transparent, #1f1717),
+        linear-gradient(to top right, #c05895, #625195);
+}
+
+#banner-text {
+    position: absolute;
+    width: max(60%, calc(100vh / 2));
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#banner-title {
+    font-weight: bold;
+    font-size: 3rem;
+}
+
+#banner-subtitle {
+    font-size: 0.9rem;
+}
+
+#content {
+    position: absolute;
+    width: max(60%, calc(100vh / 2));
+    top: 13rem;
+    left: 50%;
+    transform: translate(-50%, 0%);
+    overflow-x: none;
+    padding-bottom: 15rem;
+}
+
+.content-heading {
+    margin: 3rem 0 3rem 0;
+    font-weight: bold;
+    font-size: 2rem;
+}
+
+.content-subheading {
+    margin: 3rem 0 0.1rem 0;
+    font-weight: bold;
+    font-size: 1.4rem;
+}
+
+.bold {
+    font-weight: bold;
+}
+
+.italic {
+    font-style: italic;
+}
+
+.codespan {
+    outline: 1px solid #fcf5ed44;
+    padding: 0.2rem;
+    border-radius: 0.2rem;
+    font-size: 0.9rem;
+    font-family: \"Noto Sans Mono\", monospace;
+}
+"
+
+val HTML_DOC_MODULE = "
+<html>
+    <head>
+        <meta charset=\"utf-8\">
+        <title>_</title>
+        <style>_</style>
+    </head>
+    <body>
+        <div id=\"sidebar\">
+            <div id=\"sidebar-header\">
+                _
+            </div>
+            <div id=\"sidebar-content\">
+                _
+            </div>
+        </div>
+        <div id=\"main\">
+            <div id=\"banner\">
+                <div id=\"banner-text\">
+                    <div id=\"banner-title\">
+                        _
+                    </div>
+                    <div id=\"banner-subtitle\">
+                        _
+                    </div>
+                </div>
+            </div>
+            <div id=\"content\">
+                _
+            </div>
+        </div>
+    </body>
+</html>
+"
+
+proc md_to_html(text) {
+    mut in_italic = false
+    mut in_bold = false
+    mut i = 0
+    mut r = ""
+    repeat_over(|| unit)
+        |> take_while(-> i < length(text))
+        |> for_each(-> {
+            val next = text |> substring_after(i)
+            case next |> starts_with("`") -> {
+                val end = (i + 1)..length(text) 
+                    |> find(|idx| at(text, idx) == "`")
+                    |> unwrap_or(length(text))
+                val content = text
+                    |> substring(i + 1, end)
+                    |> replace("<", "&lt;")
+                    |> replace(">", "&gt;")
+                r = r
+                    |> concat("<span class=\"codespan\">") 
+                    |> concat(content)
+                    |> concat("</span>")
+                i = end + 1
+                return unit
+            }
+            case next |> starts_with("**") -> {
+                case in_bold -> r = r |> concat("</span>")
+                else r = r |> concat("<span class=\"bold\">")
+                in_bold = !in_bold
+                i = i + 2
+                return unit
+            }
+            case next |> starts_with("*") -> {
+                case in_italic -> r = r |> concat("</span>")
+                else r = r |> concat("<span class=\"italic\">")
+                in_italic = !in_italic
+                i = i + 1
+                return unit
+            }
+            r = r |> concat(text |> at(i))
+            i = i + 1
+        })
+    return r
+}
+
+proc create_module_dir(dest_dir, path) {
+    val parts = path |> split("::") |> std::arr::collect()
+    val og_cwd = get_cwd()
+    set_cwd(dest_dir)
+    0..(length(parts) - 1) |> map(|i| parts[i]) |> for_each(|part| {
+        create_dir(part)
+        set_cwd(part)
+    })
+    set_cwd(og_cwd)
+}
+
+pub proc document_submodules(module, filtered_mods, dest_dir) = module 
+    .> at("modules") |> expectv()
+    |> json::get_array() |> expectv()
+    .> iter()
+    |> map(-> it |> json::get_object() |> expectv())
+    |> for_each(-> {
+        val path = it .> at("path") |> expectv()
+            |> json::get_string() |> expectv()
+        val html = document_module(it)
+        val filtered = filtered_mods 
+            |> std::arr::iter()
+            |> find(|m| path |> starts_with(m))
+            |> is_some()
+        case !filtered -> return unit
+        create_module_dir(dest_dir, path)
+        val filep = dest_dir 
+            |> files::pconcat(path |> replace("::", file_sep()))
+            |> concat(".html")
+        html |> write_file(filep)
+        document_submodules(it, filtered_mods, dest_dir)
+    })
+
+proc document_module(module) {
+    val path = module .> at("path") |> expectv()
+        |> json::get_string() |> expectv()
+    mut summary = ""
+    case module .> has("information") -> {
+        summary = module .> at("information") |> expectv()
+            |> json::get_string() |> expectv()
+    }
+    return HTML_DOC_MODULE
+        |> fmt([
+            path,
+            HTML_DOC_CSS,
+            path,
+            document_sidebar(module, path),
+            path,
+            md_to_html(summary),
+            document_body(module, path),
+        ])
+}
+
+proc object_public_paths(objects) = objects 
+    |> map(-> it 
+        |> json::get_object() |> expectv()
+    )
+    |> filter(-> it
+        .> at("public") |> expectv()
+        |> json::get_bool() |> expectv() 
+    )
+    |> map(-> it
+        .> at("path") |> expectv()
+        |> json::get_string() |> expectv()
+    )
+
+proc document_sidebar(module, path) {
+    mut out = ""
+    val submodules = module .> at("modules") |> expectv()
+        |> json::get_array() |> expectv()
+    val sub_dir = path |> split("::") 
+        |> last() |> expect("'split' returns at least 1")
+    out = out |> concat("<div class=\"sidebar-heading\">Submodules</div>\n")
+    submodules .> iter()
+        |> map(-> it 
+            |> json::get_object() |> expectv()
+            .> at("path") |> expectv()
+            |> json::get_string() |> expectv()
+        )
+        |> for_each(|sub_path| {
+            val rel_path = sub_path
+                |> substring_after(length(path) + length("::"))
+            val file = "./"
+                |> concat(sub_dir)
+                |> concat("/")
+                |> concat(rel_path |> replace("::", "/"))
+                |> concat(".html")
+            val elem = "<p><a href=\"_\">_</a></p>\n"
+                |> fmt([file, sub_path])
+            out = out |> concat(elem)
+        })
+    val constants = module .> at("constants") |> expectv()
+        |> json::get_array() |> expectv()
+    out = out |> concat("<div class=\"sidebar-heading\">Constants</div>\n")
+    constants .> iter()
+        |> object_public_paths()
+        |> for_each(|sub_path| {
+            val name = sub_path |> split("::") 
+                |> last() |> expect("'split' returns at least 1")
+            val elem = "<p><a href=\"#_\">_</a></p>\n"
+                |> fmt([name, name])
+            out = out |> concat(elem)
+        })
+    val procedures = module .> at("procedures") |> expectv()
+        |> json::get_array() |> expectv()
+    out = out |> concat("<div class=\"sidebar-heading\">Procedures</div>\n")
+    procedures .> iter()
+        |> object_public_paths()
+        |> for_each(|sub_path| {
+            val name = sub_path |> split("::") 
+                |> last() |> expect("'split' returns at least 1")
+            val elem = "<p><a href=\"#_\">_</a></p>\n"
+                |> fmt([name, name])
+            out = out |> concat(elem)
+        })
+    return out
+}
+
+proc document_body(module, path) {
+    mut out = ""
+    val submodules = module .> at("modules") |> expectv()
+        |> json::get_array() |> expectv()
+    val sub_dir = path |> split("::") 
+        |> last() |> expect("'split' returns at least 1")
+    out = out |> concat("<div class=\"content-heading\">Submodules</div>\n")
+    submodules .> iter()
+        |> map(-> it 
+            |> json::get_object() |> expectv()
+            .> at("path") |> expectv()
+            |> json::get_string() |> expectv()
+        )
+        |> for_each(|sub_path| {
+            val rel_path = sub_path
+                |> substring_after(length(path) + length("::"))
+            val file = "./"
+                |> concat(sub_dir)
+                |> concat("/")
+                |> concat(rel_path |> replace("::", "/"))
+                |> concat(".html")
+            val elem = "<p><a href=\"_\">_</a></p>\n"
+                |> fmt([file, sub_path])
+            out = out |> concat(elem)
+        })
+    val constants = module .> at("constants") |> expectv()
+        |> json::get_array() |> expectv()
+    out = out |> concat("<div class=\"content-heading\">Constants</div>\n")
+    constants .> iter()
+        |> map(-> it 
+            |> json::get_object() |> expectv()
+        )
+        |> filter(-> it
+            .> at("public") |> expectv()
+            |> json::get_bool() |> expectv() 
+        )
+        |> for_each(|constant| {
+            val name = constant
+                .> at("path") |> expectv()
+                |> json::get_string() |> expectv()
+                |> split("::") |> last() |> expect("'split' returns at least 1")
+            val heading = "<a name=\"_\"><div class=\"content-subheading\">"
+                |> concat("_</div></a>\n")
+                |> fmt([name, name])
+            out = out |> concat(heading) |> concat("<hr>\n")
+            val type = constant
+                .> at("type") |> expectv()
+                |> json::get_string() |> expectv()
+            out = out |> concat(type) |> concat("\n")
+            case constant .> has("information") -> {
+                val summary = constant
+                    .> at("information") |> expectv()
+                    |> json::get_string() |> expectv()
+                out = out |> concat("<p>") 
+                    |> concat(md_to_html(summary)) 
+                    |> concat("</p>\n")
+            }
+        })
+    val procedures = module .> at("procedures") |> expectv()
+        |> json::get_array() |> expectv()
+    out = out |> concat("<div class=\"content-heading\">Procedures</div>\n")
+    procedures .> iter()
+        |> map(-> it 
+            |> json::get_object() |> expectv()
+        )
+        |> filter(-> it
+            .> at("public") |> expectv()
+            |> json::get_bool() |> expectv() 
+        )
+        |> for_each(|procedure| {
+            val name = procedure
+                .> at("path") |> expectv()
+                |> json::get_string() |> expectv()
+                |> split("::") |> last() |> expect("'split' returns at least 1")
+            val heading = "<a name=\"_\"><div class=\"content-subheading\">"
+                |> concat("_</div></a>\n")
+                |> fmt([name, name])
+            out = out |> concat(heading) |> concat("<hr>\n")
+            case procedure .> has("information") -> {
+                val summary = procedure
+                    .> at("information") |> expectv()
+                    |> json::get_string() |> expectv()
+                out = out |> concat("<p>") 
+                    |> concat(md_to_html(summary)) 
+                    |> concat("</p>\n")
+            }
+            procedure .> at("arguments") |> expectv()
+                |> json::get_array() |> expectv()
+                .> iter()
+                |> map(-> it |> json::get_object() |> expectv())
+                |> for_each(-> {
+                    val name = it .> at("name") |> expectv()
+                        |> json::get_string() |> expectv()
+                    val type = it .> at("type") |> expectv()
+                        |> json::get_string() |> expectv()
+                    out = out |> concat("<p><span class=\"codespan\">")
+                        |> concat(name)
+                        |> concat("</span> - ")
+                        |> concat(type)
+                        |> concat("</p>\n")
+                })
+            val returns = procedure .> at("returns") |> expectv()
+                |> json::get_string() |> expectv()
+            out = out |> concat("<p><span class=\"bold\">returns</span> ")
+                |> concat(returns)
+                |> concat("</p>\n")
+        })
+    return out
+} 

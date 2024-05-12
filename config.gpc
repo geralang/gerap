@@ -1,9 +1,0 @@
-name = "gerap"
-description = "The package manager for the Gera programming language."
-authors = ["TypeSafeSchwalbe"]
-version = "0.5.1"
-target = "c"
-dependencies = [
-    <https://github.com/geralang/std>
-]
-main = "gerap::main"

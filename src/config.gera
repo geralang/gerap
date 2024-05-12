@@ -1,39 +1,95 @@
 
 mod gerap::config
 
-use std::(env, opt)
+use gerap::log
 
-pub proc get_colored_output() {
-    return env::get_var("GERAP_COLORED_OUTPUT")
-        |> opt::map(|v| v == "true")
-        |> opt::unwrap_or(true)
+use std::env
+use std::opt::(is_some, is_none, map, unwrap_or, expect)
+use std::arr::iter
+use std::iter::(for_each, next)
+use std::str::(starts_with, join)
+
+proc use_color() {
+    case env::get_var("NO_COLOR") |> is_some() -> return false
+    case env::get_var("GERAP_NO_COLOR") |> is_some() -> return false
+    return true
 }
 
-pub proc get_gerac_path() {
-    return env::get_var("GERAP_GERAC_PATH")
-        |> opt::unwrap_or("gerac")
+proc java_path() = env::get_var("GERAP_JAVA_PATH")
+    |> unwrap_or("java")
+
+proc gerac_path() {
+    case env::get_var("GERAP_GERAC_PATH") {
+        #some path -> return path
+        #none -> return log::error(
+            "The environment variable 'GERAP_GERAC_PATH' has not been set!"
+        )
+    }
 }
 
-pub proc get_git_path() {
-    return env::get_var("GERAP_GIT_PATH")
-        |> opt::unwrap_or("git")
+proc git_path() = env::get_var("GERAP_GIT_PATH")
+    |> unwrap_or("git")
+
+proc cc_path() = env::get_var("GERAP_CC_PATH")
+    |> unwrap_or("cc")
+
+proc cc_args() = env::get_var("GERAP_CC_ARGS")
+    |> unwrap_or("")
+
+proc ccoredeps_path() = env::get_var("GERAP_CCOREDEPS_PATH")
+    |> unwrap_or("https://github.com/geralang/ccoredeps")
+
+proc js_path() = env::get_var("GERAP_JS_PATH")
+    |> unwrap_or("node")
+
+pub val CONFIG = {
+    use_color = true,
+    java_path = "",
+    gerac_path = "",
+    git_path = "",
+    cc_path = "",
+    cc_args = "",
+    ccoredeps_path = "",
+    js_path = ""
 }
 
-pub proc get_cc_path() {
-    return env::get_var("GERAP_CC_PATH")
-        |> opt::unwrap_or("cc")
-}
-
-pub proc get_cc_args() {
-    return env::get_var("GERAP_CC_ARGS")
-        |> opt::unwrap_or("")
-}
-
-pub proc get_node_path() {
-    return env::get_var("GERAP_NODE_PATH")
-        |> opt::unwrap_or("node")
-}
-
-pub proc get_max_call_depth() {
-    return env::get_var("GERAP_MAX_CALL_DEPTH")
+pub proc load() {
+    CONFIG.use_color = use_color()
+    CONFIG.java_path = java_path()
+    CONFIG.git_path = git_path()
+    CONFIG.cc_path = cc_path()
+    CONFIG.cc_args = cc_args()
+    CONFIG.ccoredeps_path = ccoredeps_path()
+    CONFIG.js_path = js_path()
+    val args = env::args() |> iter()
+    args |> for_each(|arg| {
+        case arg {
+            "--no-color" -> CONFIG.use_color = false
+            "--cc-path" -> {
+                val value = args |> next()
+                val value_missing = value
+                    |> map(-> it |> starts_with("--"))
+                    |> unwrap_or(true)
+                case value_missing
+                    -> log::error("Missing value for argument '--cc-path'")
+                CONFIG.cc_path = value |> expect("checked above")
+            }
+            "--ccoredeps-path" -> {
+                val value = args |> next()
+                val value_missing = value
+                    |> map(-> it |> starts_with("--"))
+                    |> unwrap_or(true)
+                case value_missing
+                    -> log::error(
+                        "Missing value for argument '--ccoredeps-path'"
+                    )
+                CONFIG.ccoredeps_path = value |> expect("checked above")
+            }
+            "--cc-args" -> {
+                CONFIG.cc_args = args |> join(" ")
+            }
+        }
+    })
+    // this one can fail, so we need to determine if we display colors first
+    CONFIG.gerac_path = gerac_path()
 }

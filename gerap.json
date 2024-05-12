@@ -1,0 +1,11 @@
+{
+    "name": "gerap",
+    "description": "The package manager for the Gera programming language.",
+    "authors": ["TypeSafeSchwalbe"],
+    "target": "c",
+    "dependencies": [
+        "https://github.com/geralang/std",
+        "https://github.com/typesafeschwalbe/gera-cJSON"
+    ],
+    "main": "gerap::cli::main"
+}
