@@ -2,9 +2,12 @@
 mod gerap::docs
 
 use gerap::log
+use gerap::files
 
-use std::opt::unwrap_or_else
-use std::io::(print, println)
+use std::res::expect
+use std::opt::(unwrap_or_else, is_some)
+use std::str::*
+use std::io::*
 use std::iter::*
 
 proc expectv(o) = o
@@ -102,4 +105,232 @@ pub proc print_info(thing) {
     }
     thing |> print_string_property("returns")
     thing |> print_string_property("type")
+}
+
+
+val HTML_DOC_CSS = "
+@import url(\"https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@600&display=swap\");
+@import url(\"https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,700;1,400;1,700&display=swap\");
+
+body {
+    font-family: \"Rubik\", sans-serif;
+    margin: 0px;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: row;
+    background: #1f1717;
+    color: #fcf5ed;
+}
+
+a {
+    color: #fcf5ed;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+*::selection {
+    background: #fcf5ed;
+    color: #1f1717;
+}
+
+#sidebar {
+    position: relative;
+    width: 30rem;
+    height: 100%;
+    flex-grow: 0;
+    overflow-x: none;
+    overflow-y: scroll;
+}
+
+#sidebar-header {
+    width: 100%;
+    height: 5rem;
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-content: center;
+    flex-direction: column;
+    padding-left: 2rem;
+    box-sizing: border-box;
+}
+
+#sidebar-content {
+    width: 100%;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    box-sizing: border-box;
+    padding-bottom: 15rem;
+}
+
+.sidebar-heading {
+    margin-top: 2rem;
+    font-size: 1.3rem;
+    font-weight: bold;
+}
+
+#main {
+    position: relative;
+    height: 100%;
+    flex-grow: 1;
+    overflow-y: scroll;
+    outline: 1px solid #fcf5ed44;
+}
+
+#banner {
+    position: relative;
+    margin-top: 2.5rem;
+    width: 100%;
+    height: 10rem;
+    background: linear-gradient(to right, transparent, 30%, transparent, #1f1717),
+        linear-gradient(to left, transparent, 30%, transparent, #1f1717),
+        linear-gradient(to top right, #c05895, #625195);
+}
+
+#banner-text {
+    position: absolute;
+    width: max(60%, calc(100vh / 2));
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#banner-title {
+    font-weight: bold;
+    font-size: 3rem;
+}
+
+#banner-subtitle {
+    font-size: 0.9rem;
+}
+
+#content {
+    position: absolute;
+    width: max(60%, calc(100vh / 2));
+    top: 13rem;
+    left: 50%;
+    transform: translate(-50%, 0%);
+    overflow-x: none;
+    padding-bottom: 15rem;
+}
+
+.content-heading {
+    margin: 2rem 0 2rem 0;
+    font-weight: bold;
+    font-size: 2rem;
+}
+
+.content-subheading {
+    margin: 2rem 0 0.1rem 0;
+    font-weight: bold;
+    font-size: 1.4rem;
+}
+
+.bold {
+    font-weight: bold;
+}
+
+.italic {
+    font-style: italic;
+}
+
+.codespan {
+    outline: 1px solid #fcf5ed44;
+    padding: 0.2rem;
+    border-radius: 0.2rem;
+    font-size: 0.9rem;
+    font-family: \"Noto Sans Mono\", monospace;
+}
+"
+
+val HTML_DOC_MODULE = "
+<html>
+    <head>
+        <meta charset=\"utf-8\">
+        <title>_</title>
+        <style>_</style>
+    </head>
+    <body>
+        <div id=\"sidebar\">
+            <div id=\"sidebar-header\">
+                _
+            </div>
+            <div id=\"sidebar-content\">
+                _
+                _
+                _
+            </div>
+        </div>
+        <div id=\"main\">
+            <div id=\"banner\">
+                <div id=\"banner-text\">
+                    <div id=\"banner-title\">
+                        _
+                    </div>
+                    <div id=\"banner-subtitle\">
+                        _
+                    </div>
+                </div>
+            </div>
+            <div id=\"content\">
+                _
+                _
+                _
+            </div>
+        </div>
+    </body>
+</html>
+"
+
+pub proc document_submodules(module, filtered_mods, dest_dir) = module 
+    .> at("modules") |> expectv()
+    |> json::get_array() |> expectv()
+    .> iter()
+    |> map(-> it |> json::get_object() |> expectv())
+    |> for_each(-> {
+        val path = it .> at("path") |> expectv()
+            |> json::get_string() |> expectv()
+        val dirp = dest_dir 
+            |> files::pconcat(path |> replace("::", file_sep()))
+        create_dir(dirp)
+        document_submodules(it, filtered_mods, dest_dir)
+        val html = document_module(it)
+        val filtered = filtered_mods 
+            |> std::arr::iter()
+            |> find(|m| path |> starts_with(m))
+            |> is_some()
+        case !filtered -> return unit
+        val filep = dest_dir 
+            |> files::pconcat(path |> replace("::", file_sep()))
+            |> concat(".html")
+        html |> write_file(filep)
+    })
+
+proc document_module(module) {
+    val path = module .> at("path") |> expectv()
+        |> json::get_string() |> expectv()
+    mut summary = ""
+    case module .> has("information") -> {
+        summary = module .> at("information") |> expectv()
+            |> json::get_string() |> expectv()
+    }
+
+    return HTML_DOC_MODULE
+        |> fmt([
+            path,
+            HTML_DOC_CSS,
+            path,
+            "",
+            "",
+            "",
+            path,
+            summary,
+            "",
+            "",
+            "",
+        ])
 }

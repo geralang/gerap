@@ -166,7 +166,21 @@ proc main() {
                 |> skip(2)
                 |> take_while(-> !starts_with(it, "--"))
                 |> collect()
-            panic("not yet implemented!")
+            case !file_exists(".gerap/symbols.json") -> {
+                val p = pkg::read_config("gerap.json")
+                make::build(p, Vector::new(), false)
+            }
+            val symbols = ".gerap/symbols.json"
+                |> read_file()
+                |> expect("should exist!")
+                |> json::from_str()
+                |> unwrap_or_else(|e| 
+                    log::error("Symbol file should be valid!")
+                )
+                |> json::get_object()
+                |> unwrap_or_else(|| log::error("Symbol file should be valid!"))
+            create_dir(".gerap/docs")
+            docs::document_submodules(symbols, modules, ".gerap/docs")
         }
         "clean" -> {
             files::nuke_dir(".gerap")
