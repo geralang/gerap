@@ -180,7 +180,9 @@ proc main() {
                 |> json::get_object()
                 |> unwrap_or_else(|| log::error("Symbol file should be valid!"))
             create_dir(".gerap/docs")
-            docs::document_submodules(symbols, modules, ".gerap/docs")
+            docs::document_submodules(
+                symbols, #none unit, modules, ".gerap/docs"
+            )
         }
         "clean" -> {
             files::nuke_dir(".gerap")

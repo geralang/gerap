@@ -291,6 +291,11 @@ val HTML_DOC_MODULE = "
 </html>
 "
 
+proc escape_html(text) = text
+    |> replace("&", "&amp;")
+    |> replace("<", "&lt;")
+    |> replace(">", "&gt;")
+
 proc md_to_html(text) {
     mut in_italic = false
     mut in_bold = false
@@ -306,11 +311,9 @@ proc md_to_html(text) {
                     |> unwrap_or(length(text))
                 val content = text
                     |> substring(i + 1, end)
-                    |> replace("<", "&lt;")
-                    |> replace(">", "&gt;")
                 r = r
                     |> concat("<span class=\"codespan\">") 
-                    |> concat(content)
+                    |> concat(escape_html(content))
                     |> concat("</span>")
                 i = end + 1
                 return unit
@@ -329,7 +332,12 @@ proc md_to_html(text) {
                 i = i + 1
                 return unit
             }
-            r = r |> concat(text |> at(i))
+            val c = text |> at(i)
+            case c {
+                "<" -> r = r |> concat("&lt;")
+                ">" -> r = r |> concat("&gt;")
+                "&" -> r = r |> concat("&amp;")
+            } else r = r |> concat(c)
             i = i + 1
         })
     return r
@@ -346,7 +354,9 @@ proc create_module_dir(dest_dir, path) {
     set_cwd(og_cwd)
 }
 
-pub proc document_submodules(module, filtered_mods, dest_dir) = module 
+pub proc document_submodules(
+    module, parent_path, filtered_mods, dest_dir
+) = module 
     .> at("modules") |> expectv()
     |> json::get_array() |> expectv()
     .> iter()
@@ -354,7 +364,7 @@ pub proc document_submodules(module, filtered_mods, dest_dir) = module
     |> for_each(-> {
         val path = it .> at("path") |> expectv()
             |> json::get_string() |> expectv()
-        val html = document_module(it)
+        val html = document_module(it, parent_path)
         val filtered = filtered_mods 
             |> std::arr::iter()
             |> find(|m| path |> starts_with(m))
@@ -365,22 +375,36 @@ pub proc document_submodules(module, filtered_mods, dest_dir) = module
             |> files::pconcat(path |> replace("::", file_sep()))
             |> concat(".html")
         html |> write_file(filep)
-        document_submodules(it, filtered_mods, dest_dir)
+        document_submodules(it, #some path, filtered_mods, dest_dir)
     })
 
-proc document_module(module) {
+proc document_module(module, parent_path) {
     val path = module .> at("path") |> expectv()
         |> json::get_string() |> expectv()
+    val path_elems = path |> split("::") |> std::arr::collect()
     mut summary = ""
     case module .> has("information") -> {
         summary = module .> at("information") |> expectv()
             |> json::get_string() |> expectv()
     }
+    val sb_hd_elem
+    case parent_path {
+        #some pp -> {
+            val pp_elems = pp |> split("::") |> std::arr::collect()
+            sb_hd_elem = "<a href=\"._/_.html\">← _</a>\n"
+                |> fmt([
+                    "/.." |> repeat(length(path_elems) - length(pp_elems)),
+                    pp_elems[-1], 
+                    path
+                ])
+        }
+        #none -> sb_hd_elem = path
+    }
     return HTML_DOC_MODULE
         |> fmt([
             path,
             HTML_DOC_CSS,
-            path,
+            sb_hd_elem,
             document_sidebar(module, path),
             path,
             md_to_html(summary),
@@ -501,7 +525,7 @@ proc document_body(module, path) {
             val type = constant
                 .> at("type") |> expectv()
                 |> json::get_string() |> expectv()
-            out = out |> concat(type) |> concat("\n")
+            out = out |> concat(escape_html(type)) |> concat("\n")
             case constant .> has("information") -> {
                 val summary = constant
                     .> at("information") |> expectv()
@@ -551,13 +575,13 @@ proc document_body(module, path) {
                     out = out |> concat("<p><span class=\"codespan\">")
                         |> concat(name)
                         |> concat("</span> - ")
-                        |> concat(type)
+                        |> concat(escape_html(type))
                         |> concat("</p>\n")
                 })
             val returns = procedure .> at("returns") |> expectv()
                 |> json::get_string() |> expectv()
             out = out |> concat("<p><span class=\"bold\">returns</span> ")
-                |> concat(returns)
+                |> concat(escape_html(returns))
                 |> concat("</p>\n")
         })
     return out
