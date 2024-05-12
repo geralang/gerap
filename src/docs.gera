@@ -247,11 +247,12 @@ hr {
 }
 
 .codespan {
-    outline: 1px solid #fcf5ed44;
+    background: #fcf5ed22;
     padding: 0.2rem;
-    border-radius: 0.2rem;
+    border-radius: 0.4rem;
     font-size: 0.9rem;
     font-family: \"Noto Sans Mono\", monospace;
+    line-height: 1.4rem;
 }
 "
 
