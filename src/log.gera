@@ -13,7 +13,7 @@ use std::str::*
 use std::iter::*
 
 
-proc style(properties) {
+pub proc style(properties) {
     case env::is_windows() -> return ""
     case !CONFIG.use_color -> return ""
     return "\x1b[0"
@@ -24,30 +24,30 @@ proc style(properties) {
         |> concat("m")
 }
 
-val RESET = "0"
-val BOLD = "1"
-val BLACK = "30"
-val RED = "31"
-val GREEN = "32"
-val YELLOW = "33"
-val BLUE = "34"
-val MAGENTA = "35"
-val CYAN = "36"
-val WHITE = "37"
-val BRIGHT_BLACK = "90"
-val BRIGHT_RED = "91"
-val BRIGHT_GREEN = "92"
-val BRIGHT_YELLOW = "93"
-val BRIGHT_BLUE = "94"
-val BRIGHT_MAGENTA = "95"
-val BRIGHT_CYAN = "96"
-val BRIGHT_WHITE = "97"
+pub val RESET = "0"
+pub val BOLD = "1"
+pub val BLACK = "30"
+pub val RED = "31"
+pub val GREEN = "32"
+pub val YELLOW = "33"
+pub val BLUE = "34"
+pub val MAGENTA = "35"
+pub val CYAN = "36"
+pub val WHITE = "37"
+pub val BRIGHT_BLACK = "90"
+pub val BRIGHT_RED = "91"
+pub val BRIGHT_GREEN = "92"
+pub val BRIGHT_YELLOW = "93"
+pub val BRIGHT_BLUE = "94"
+pub val BRIGHT_MAGENTA = "95"
+pub val BRIGHT_CYAN = "96"
+pub val BRIGHT_WHITE = "97"
 
 
 val OVERWRITTEN_LINE = { length = 0 }
 
-val SPINNER_POSITIONS = "|/-\\"
-val SPINNER_FRAME_TIME = 250
+val SPINNER_POSITIONS = "|/-\\" 
+val SPINNER_FRAME_TIME = 150
 
 proc log_spinner(message, until) {
     mut pos = 0

@@ -38,40 +38,42 @@ pub proc find_symbol(module, name) {
 
 pub proc print_info(thing) {
     println("")
-    thing 
-        .> at("information") |> expectv()
-        |> json::get_string() |> expectv()
-        |> println()
-    println("")
-    val print_object_paths = |j| j
-        |> json::get_array() |> expectv()
-        .> iter()
-        |> map(-> it 
-            |> json::get_object() |> expectv()
-            .> at("path") |> expectv()
+    case thing .> has("information") -> {
+        print(log::style([log::BOLD]))
+        println("summary")
+        print(log::style([]))
+        thing 
+            .> at("information") |> expectv()
             |> json::get_string() |> expectv()
-        )
-        |> for_each(println)
-    case thing .> has("modules") -> {
-        println("-- submodules --")
-        thing .> at("modules") |> expectv()
-            |> print_object_paths()
+            |> println()
         println("")
     }
-    case thing .> has("constants") -> {
-        println("-- constants --")
-        thing .> at("constants") |> expectv()
-            |> print_object_paths()
-        println("")
+    val print_paths_property = |o, property| {
+        case thing .> has(property) -> {
+            val items = thing .> at(property) |> expectv()
+                |> json::get_array() |> expectv()
+            case items.size > 0 -> {
+                print(log::style([log::BOLD]))
+                println(property)
+                print(log::style([]))
+                items .> iter()
+                    |> map(-> it 
+                        |> json::get_object() |> expectv()
+                        .> at("path") |> expectv()
+                        |> json::get_string() |> expectv()
+                    )
+                    |> for_each(println)
+                println("")
+            }
+        }
     }
-    case thing .> has("procedures") -> {
-        println("-- procedures --")
-        thing .> at("procedures") |> expectv()
-            |> print_object_paths()
-        println("")
-    }
+    thing |> print_paths_property("modules")
+    thing |> print_paths_property("constants")
+    thing |> print_paths_property("procedures")
     case thing .> has("arguments") -> {
-        println("-- arguments --")
+        print(log::style([log::BOLD]))
+        println("arguments")
+        print(log::style([]))
         thing .> at("arguments") |> expectv()
             |> json::get_array() |> expectv()
             .> iter()
@@ -87,18 +89,17 @@ pub proc print_info(thing) {
             })
         println("")
     }
-    case thing .> has("returns") -> {
-        println("-- returns --")
-        thing .> at("returns") |> expectv()
-            |> json::get_string() |> expectv()
-            |> println()
-        println("")
+    val print_string_property = |o, property| {
+        case thing .> has(property) -> {
+            print(log::style([log::BOLD]))
+            println(property)
+            print(log::style([]))
+            thing .> at(property) |> expectv()
+                |> json::get_string() |> expectv()
+                |> println()
+            println("")
+        }
     }
-    case thing .> has("type") -> {
-        println("-- type --")
-        thing .> at("type") |> expectv()
-            |> json::get_string() |> expectv()
-            |> println()
-        println("")
-    }
+    thing |> print_string_property("returns")
+    thing |> print_string_property("type")
 }
