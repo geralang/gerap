@@ -1,0 +1,104 @@
+
+mod gerap::docs
+
+use gerap::log
+
+use std::opt::unwrap_or_else
+use std::io::(print, println)
+use std::iter::*
+
+proc expectv(o) = o
+    |> unwrap_or_else(|| log::error("Symbol file should be valid!"))
+
+pub proc find_symbol(module, name) {
+    val search = |j, f| j
+        |> json::get_array() |> expectv()
+        .> iter()
+        |> map(-> it |> json::get_object() |> expectv())
+        |> reduce(|r, c| {
+            r ?none
+            val n = c .> at("path") |> expectv()
+                |> json::get_string() |> expectv()
+            case n == name -> return #some c
+            return f(c)
+        }, #none unit)
+    case module .> has("constants") -> {
+        module .> at("constants") |> expectv()
+            |> search(-> #none unit)
+            ?none
+    }
+    case module .> has("procedures") -> {
+        module .> at("procedures") |> expectv()
+            |> search(-> #none unit)
+            ?none
+    }
+    return module .> at("modules") |> expectv()
+        |> search(-> it |> find_symbol(name))
+}
+
+pub proc print_info(thing) {
+    println("")
+    thing 
+        .> at("information") |> expectv()
+        |> json::get_string() |> expectv()
+        |> println()
+    println("")
+    val print_object_paths = |j| j
+        |> json::get_array() |> expectv()
+        .> iter()
+        |> map(-> it 
+            |> json::get_object() |> expectv()
+            .> at("path") |> expectv()
+            |> json::get_string() |> expectv()
+        )
+        |> for_each(println)
+    case thing .> has("modules") -> {
+        println("-- submodules --")
+        thing .> at("modules") |> expectv()
+            |> print_object_paths()
+        println("")
+    }
+    case thing .> has("constants") -> {
+        println("-- constants --")
+        thing .> at("constants") |> expectv()
+            |> print_object_paths()
+        println("")
+    }
+    case thing .> has("procedures") -> {
+        println("-- procedures --")
+        thing .> at("procedures") |> expectv()
+            |> print_object_paths()
+        println("")
+    }
+    case thing .> has("arguments") -> {
+        println("-- arguments --")
+        thing .> at("arguments") |> expectv()
+            |> json::get_array() |> expectv()
+            .> iter()
+            |> map(-> it |> json::get_object() |> expectv())
+            |> for_each(-> {
+                it .> at("name") |> expectv()
+                    |> json::get_string() |> expectv()
+                    |> print()
+                print(" - ")
+                it .> at("type") |> expectv()
+                    |> json::get_string() |> expectv()
+                    |> println()
+            })
+        println("")
+    }
+    case thing .> has("returns") -> {
+        println("-- returns --")
+        thing .> at("returns") |> expectv()
+            |> json::get_string() |> expectv()
+            |> println()
+        println("")
+    }
+    case thing .> has("type") -> {
+        println("-- type --")
+        thing .> at("type") |> expectv()
+            |> json::get_string() |> expectv()
+            |> println()
+        println("")
+    }
+}

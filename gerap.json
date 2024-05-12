@@ -5,7 +5,7 @@
     "target": "c",
     "dependencies": [
         "https://github.com/geralang/std",
-        "https://github.com/typesafeschwalbe/gera-json"
+        "https://github.com/typesafeschwalbe/gera-cJSON"
     ],
     "main": "gerap::cli::main"
 }

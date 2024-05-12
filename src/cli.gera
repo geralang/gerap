@@ -5,12 +5,14 @@ use gerap::log
 use gerap::pkg
 use gerap::make
 use gerap::files
+use gerap::docs
 use gerap::config::CONFIG
 
 use std::coll::Vector
 use std::prc::Process
 use std::env::(args, run)
 use std::arr::(iter, collect)
+use std::res::(unwrap_or_else, expect)
 use std::opt::*
 use std::str::*
 use std::iter::*
@@ -135,7 +137,28 @@ proc main() {
         "info" -> {
             case length(args) <= 2
                 -> log::error("Missing the path of the thing to document!")
-            panic("not yet implemented!")
+            val path = args[2]
+            case !file_exists(".gerap/symbols.json") -> {
+                val p = pkg::read_config("gerap.json")
+                make::build(p, Vector::new(), false)
+            }
+            val symbols = ".gerap/symbols.json"
+                |> read_file()
+                |> expect("should exist!")
+                |> json::from_str()
+                |> unwrap_or_else(|e| 
+                    log::error("Symbol file should be valid!")
+                )
+                |> json::get_object()
+                |> unwrap_or_else(|| log::error("Symbol file should be valid!"))
+            val found = symbols
+                |> docs::find_symbol(path)
+            case found {
+                #some thing -> docs::print_info(thing)
+                #none -> "\n'_' could not be found.\n"
+                    |> fmt([path])
+                    |> println()
+            }
         }
         "doc" -> {
             val modules = args
