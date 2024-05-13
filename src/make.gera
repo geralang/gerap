@@ -183,5 +183,8 @@ proc join_js_sources(root_pkg, sources) {
             ))
         output = output |> concat(content)
     })
-    output |> write_file(".gerap/" |> concat(root_pkg.name))
+    val out_path = ".gerap/" 
+        |> concat(root_pkg.name) 
+        |> concat(".js")
+    output |> write_file(out_path)
 }
