@@ -238,6 +238,12 @@ hr {
     font-size: 1.4rem;
 }
 
+.type {
+    font-size: 0.9rem;
+    font-family: \"Noto Sans Mono\", monospace;
+    line-height: 1.4rem;
+}
+
 .bold {
     font-weight: bold;
 }
@@ -525,7 +531,10 @@ proc document_body(module, path) {
             val type = constant
                 .> at("type") |> expectv()
                 |> json::get_string() |> expectv()
-            out = out |> concat(escape_html(type)) |> concat("\n")
+            out = out 
+                |> concat("<span class=\"type\">")
+                |> concat(escape_html(type)) 
+                |> concat("</span>\n")
             case constant .> has("information") -> {
                 val summary = constant
                     .> at("information") |> expectv()
@@ -563,6 +572,8 @@ proc document_body(module, path) {
                     |> concat(md_to_html(summary)) 
                     |> concat("</p>\n")
             }
+            out = out
+                |> concat("<p><span class=\"bold\">Arguments</span></p>\n")
             procedure .> at("arguments") |> expectv()
                 |> json::get_array() |> expectv()
                 .> iter()
@@ -574,15 +585,18 @@ proc document_body(module, path) {
                         |> json::get_string() |> expectv()
                     out = out |> concat("<p><span class=\"codespan\">")
                         |> concat(name)
-                        |> concat("</span> - ")
+                        |> concat("</span> - <span class=\"type\">")
                         |> concat(escape_html(type))
-                        |> concat("</p>\n")
+                        |> concat("</span></p>\n")
                 })
+            out = out 
+                |> concat("<p><span class=\"bold\">Returns</span></p>\n")
             val returns = procedure .> at("returns") |> expectv()
                 |> json::get_string() |> expectv()
-            out = out |> concat("<p><span class=\"bold\">returns</span> ")
+            out = out 
+                |> concat("<p><span class=\"type\">")
                 |> concat(escape_html(returns))
-                |> concat("</p>\n")
+                |> concat("</span></p>\n")
         })
     return out
 } 
