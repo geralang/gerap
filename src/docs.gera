@@ -5,6 +5,8 @@ use gerap::log
 use gerap::files
 
 use std::res::expect
+use std::sort::alphabetical
+use std::arr::(sorted, iter)
 use std::opt::*
 use std::str::*
 use std::io::*
@@ -431,6 +433,11 @@ proc object_public_paths(objects) = objects
         |> json::get_string() |> expectv()
     )
 
+proc iter_sorted_alphabetically(paths, f) = paths
+    |> std::arr::collect()
+    |> sorted(alphabetical(f))
+    |> iter()
+
 proc document_sidebar(module, path) {
     mut out = ""
     val submodules = module .> at("modules") |> expectv()
@@ -444,6 +451,7 @@ proc document_sidebar(module, path) {
             .> at("path") |> expectv()
             |> json::get_string() |> expectv()
         )
+        |> iter_sorted_alphabetically(-> it)
         |> for_each(|sub_path| {
             val rel_path = sub_path
                 |> substring_after(length(path) + length("::"))
@@ -461,6 +469,7 @@ proc document_sidebar(module, path) {
     out = out |> concat("<div class=\"sidebar-heading\">Constants</div>\n")
     constants .> iter()
         |> object_public_paths()
+        |> iter_sorted_alphabetically(-> it)
         |> for_each(|sub_path| {
             val name = sub_path |> split("::") 
                 |> last() |> expect("'split' returns at least 1")
@@ -473,6 +482,7 @@ proc document_sidebar(module, path) {
     out = out |> concat("<div class=\"sidebar-heading\">Procedures</div>\n")
     procedures .> iter()
         |> object_public_paths()
+        |> iter_sorted_alphabetically(-> it)
         |> for_each(|sub_path| {
             val name = sub_path |> split("::") 
                 |> last() |> expect("'split' returns at least 1")
@@ -496,6 +506,7 @@ proc document_body(module, path) {
             .> at("path") |> expectv()
             |> json::get_string() |> expectv()
         )
+        |> iter_sorted_alphabetically(-> it)
         |> for_each(|sub_path| {
             val rel_path = sub_path
                 |> substring_after(length(path) + length("::"))
@@ -518,6 +529,10 @@ proc document_body(module, path) {
         |> filter(-> it
             .> at("public") |> expectv()
             |> json::get_bool() |> expectv() 
+        )
+        |> iter_sorted_alphabetically(-> it
+            .> at("path") |> expectv()
+            |> json::get_string() |> expectv()
         )
         |> for_each(|constant| {
             val name = constant
@@ -554,6 +569,10 @@ proc document_body(module, path) {
         |> filter(-> it
             .> at("public") |> expectv()
             |> json::get_bool() |> expectv() 
+        )
+        |> iter_sorted_alphabetically(-> it
+            .> at("path") |> expectv()
+            |> json::get_string() |> expectv()
         )
         |> for_each(|procedure| {
             val name = procedure
