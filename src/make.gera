@@ -160,7 +160,6 @@ proc compile_c_sources(root_pkg, sources, release) {
     args .> push("-o") .> push(".gerap/" |> concat(root_pkg.name))
     args .> push("-I") .> push(CONFIG.ccoredeps_path)
     args .> push("-lm")
-    args .> push("-rdynamic")
     case release -> args .> push("-O3")
     args .> push(files::pconcat(CONFIG.ccoredeps_path, "coredeps.c"))
     CONFIG.cc_args |> split(" ") 
