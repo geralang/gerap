@@ -81,6 +81,7 @@ proc main() {
                 "js" -> CONFIG.js_path
                     |> concat(" .gerap/")
                     |> concat(p.name)
+                    |> concat(".js")
                     |> run()
             }
         }
