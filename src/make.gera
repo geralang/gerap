@@ -44,6 +44,7 @@ pub proc build(pkg, gera_sources, release) {
         "c" -> compile_c_sources(pkg, sources, release)
         "js" -> join_js_sources(pkg, sources)
     }
+    log::compiled(pkg.name)
 }
 
 proc prepare_ccoredeps() {
@@ -168,7 +169,6 @@ proc compile_c_sources(root_pkg, sources, release) {
     val compilation = Process::new(CONFIG.cc_path, args .> as_array())
     log::compiling(root_pkg.name, || compilation .> is_done())
     compilation |> check_exit_code("compiling " |> concat(root_pkg.name))
-    log::compiled(root_pkg.name)
 }
 
 proc join_js_sources(root_pkg, sources) {
